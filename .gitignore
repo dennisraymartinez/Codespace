@@ -1,0 +1,58 @@
+# Virtual Environment Directories
+*env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Python Package Directories
+lib/
+lib64/
+dist/
+build/
+eggs/
+*.egg-info/
+wheels/
+share/python-wheels/
+
+# Python Compiled Files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# VS Code and Copilot specific files
+**/*.db
+**/*SemanticSymbols.db*
+**/CopilotIndices/**
+.vs/
+.vscode/*
+
+# Package Distribution
+*.egg
+MANIFEST
+
+# Dependencies
+node_modules/
+jspm_packages/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment Variables
+.env
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Local Development Settings
+*.log
+local_settings.py
+db.sqlite3
+
+# Certificate files
+*.pem
