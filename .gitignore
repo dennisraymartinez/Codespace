@@ -17,3 +17,14 @@
 *.cfg
 *.pyproj
 *.sln
+
+# Database and Large Files
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*SemanticSymbols.db
+**/CopilotIndices/**
+*.sqlite
+*.sqlite3
+**/*.h5
+**/*.bin
