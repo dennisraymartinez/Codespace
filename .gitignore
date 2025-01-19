@@ -28,3 +28,11 @@
 *.sqlite3
 **/*.h5
 **/*.bin
+
+# VS Code specific
+**/.vs/
+**/FileContentIndex/
+**/*.vsidx
+**/*.wsuo
+**/DocumentLayout*.json
+**/copilot-chat/
