@@ -173,7 +173,8 @@ def main() -> int:
             fail(
                 f"rejected with {exc.status_code}",
                 "the public key may not be enrolled yet, or the API key does "
-                "not match the keypair. Re-check Account > Crypto > API keys.",
+                "not match the keypair. Re-check robinhood.com web classic > "
+                "crypto account settings > Add key.",
             )
         else:
             fail(f"{exc.status_code} from accounts endpoint: {exc.body}")
