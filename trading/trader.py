@@ -48,7 +48,7 @@ class Trader:
         *,
         ledger: Ledger | None = None,
         dry_run: bool = True,
-        audit_log: Path = AUDIT_LOG,
+        audit_log: Path | None = None,
     ) -> None:
         self.client = client
         self.rails = rails
@@ -56,7 +56,7 @@ class Trader:
         # Defaults to True on purpose: forgetting to pass dry_run must fail
         # safe, not send a live order.
         self.dry_run = dry_run
-        self.audit_log = audit_log
+        self.audit_log = audit_log or AUDIT_LOG
 
     # -- market data --------------------------------------------------
 

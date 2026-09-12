@@ -353,8 +353,11 @@ class Ledger:
     would mean nothing.
     """
 
-    def __init__(self, path: Path = LEDGER_PATH) -> None:
-        self.path = path
+    def __init__(self, path: Path | None = None) -> None:
+        # Resolved at call time, not import time, so tests (and anything
+        # else) can redirect LEDGER_PATH without the default having been
+        # frozen into this signature already.
+        self.path = path or LEDGER_PATH
 
     @staticmethod
     def _today() -> str:

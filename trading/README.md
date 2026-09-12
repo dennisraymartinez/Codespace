@@ -48,6 +48,22 @@ The venv must be active in every new terminal before `python place_order.py`
 
 ## Placing an order
 
+The guided way — one command that asks you everything:
+
+```powershell
+python buy.py
+```
+
+It lists your allow-listed symbols with live prices and the round-trip
+cost, asks how many dollars, shows exactly what would happen, and places
+the order only after you type `buy`. It arms the kill switch for that one
+order and disarms immediately afterwards, so the armed window is as short
+as it can be — and leaves the switch alone if you had already armed it.
+
+Everything below is the same machinery with the steps separated out.
+
+## Placing an order by hand
+
 Dry run is the default, and you have to ask twice for a live order:
 `--execute` on the command line **and** `TRADING_ENABLED=true` in `.env`.
 Either one alone sends nothing.
@@ -95,6 +111,7 @@ sent, so the filled amount is the one that counts.
 | `robinhood_client.py` | Signs and sends requests. Raw transport, applies **no** rails. |
 | `safety.py` | The rails, the order intent, and the daily usage ledger. |
 | `trader.py` | The single choke point. Everything goes through `Trader.submit`. |
+| `buy.py` | Guided buying: prompts, explains, arms only for the order. |
 | `place_order.py` | CLI for one order. Dry run unless `--execute`. |
 | `set_api_key.py` | Writes `RH_API_KEY` into `.env` safely. Refuses a private key. |
 | `arm.py` | Turns the kill switch on (asks first) or off (immediately). |
@@ -102,7 +119,7 @@ sent, so the filled amount is the one that counts.
 | `pairs.py` | Lists tradable crypto pairs; adds or removes allow-list entries. |
 | `envfile.py` | Reads and writes single `.env` values without touching the rest. |
 | `check_setup.py` | Preflight: rails, usage, credentials, signing, market data. Exit 0 = all clear. |
-| `test_safety.py` | 83 tests over the rails and the choke point. Fakes the client, no network. |
+| `test_safety.py` | 91 tests over the rails and the choke point. Fakes the client, no network. |
 
 `robinhood_client.py` can place an order without any rail — it is deliberately
 dumb transport. Application code must go through `Trader`, which is where the

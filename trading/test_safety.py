@@ -100,6 +100,21 @@ class FakeClient:
         self.placed.append(body)
         return {"id": "order-1", "state": "open", **body}
 
+    def get_order(self, order_id):
+        body = self.placed[-1] if self.placed else {}
+        config = body.get("market_order_config", {})
+        quantity = config.get("asset_quantity", "0")
+        return {
+            "id": order_id,
+            "created_at": "2026-09-12T19:08:32",
+            "side": body.get("side", "buy"),
+            "symbol": body.get("symbol", "BTC-USD"),
+            "state": "filled",
+            "filled_asset_quantity": quantity,
+            "average_price": self.ask,
+            "market_order_config": config,
+        }
+
     def cancel_order(self, order_id):
         self.cancelled.append(order_id)
         return {"id": order_id, "state": "canceled"}
@@ -1052,6 +1067,139 @@ def test_armed_dry_run_has_no_kill_switch_note():
     assert not any("kill switch" in n for n in result["notes"]), result["notes"]
 
 
+# -- the guided flow --------------------------------------------------
+
+
+def _buy(answers, env_text=None, client=None):
+    """Drive buy.py with scripted answers; return (code, .env text, output)."""
+    import contextlib, io, os, tempfile as _tf
+    import buy as buy_mod
+
+    env_text = env_text or (
+        "RH_API_KEY=rh-api-1\nRH_PRIVATE_KEY=\nTRADING_ENABLED=false\n"
+        "ALLOWED_SYMBOLS=BTC-USD\nMAX_ORDER_USD=60\nMAX_DAILY_USD=200\n"
+        "MAX_ORDERS_PER_DAY=10\nSLIPPAGE_BUFFER_PCT=1\n"
+        "MAX_LIMIT_DEVIATION_PCT=5\n"
+    )
+    tmp = Path(_tf.mkdtemp()) / ".env"
+    tmp.write_text(env_text)
+
+    stub = client or FakeClient(bid="99", ask="101")
+    saved_env = dict(os.environ)
+    os.environ.update(
+        {
+            "TRADING_ENABLED": "false",
+            "ALLOWED_SYMBOLS": "BTC-USD",
+            "MAX_ORDER_USD": "60",
+            "MAX_DAILY_USD": "200",
+            "MAX_ORDERS_PER_DAY": "10",
+            "SLIPPAGE_BUFFER_PCT": "1",
+            "MAX_LIMIT_DEVIATION_PCT": "5",
+        }
+    )
+    # buy.py builds its own Trader, so redirect the ledger and audit log
+    # or the test writes into the real state/ directory.
+    import safety as safety_mod
+    import trader as trader_mod
+
+    state = tmp.parent / "state"
+    originals = (buy_mod.ENV_PATH, buy_mod.ask, buy_mod.RobinhoodCryptoClient,
+                 buy_mod.load_dotenv, buy_mod.time,
+                 safety_mod.LEDGER_PATH, trader_mod.AUDIT_LOG)
+    safety_mod.LEDGER_PATH = state / "ledger.json"
+    trader_mod.AUDIT_LOG = state / "orders.jsonl"
+    buy_mod.ENV_PATH = tmp
+    scripted = list(answers)
+    buy_mod.ask = lambda q: scripted.pop(0) if scripted else "q"
+    buy_mod.RobinhoodCryptoClient = lambda *a, **k: stub
+    buy_mod.load_dotenv = lambda *a, **k: None
+
+    class NoSleep:
+        @staticmethod
+        def time():
+            return 0.0
+
+        @staticmethod
+        def sleep(_):
+            return None
+
+    buy_mod.time = NoSleep
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            try:
+                code = buy_mod.main()
+            except SystemExit as exc:  # the quit paths exit, as a CLI should
+                code = exc.code if isinstance(exc.code, int) else 1
+        return code, tmp.read_text(), buf.getvalue(), stub
+    finally:
+        (buy_mod.ENV_PATH, buy_mod.ask, buy_mod.RobinhoodCryptoClient,
+         buy_mod.load_dotenv, buy_mod.time,
+         safety_mod.LEDGER_PATH, trader_mod.AUDIT_LOG) = originals
+        os.environ.clear()
+        os.environ.update(saved_env)
+
+
+def test_guided_buy_places_the_order():
+    code, text, out, client = _buy(["1", "50", "buy"])
+    assert code == 0, out
+    assert len(client.placed) == 1, out
+    assert client.placed[0]["symbol"] == "BTC-USD"
+    assert client.placed[0]["side"] == "buy"
+
+
+def test_guided_buy_disarms_afterwards():
+    """The armed window must close even though the order went through."""
+    code, text, out, client = _buy(["1", "50", "buy"])
+    assert len(client.placed) == 1
+    assert "TRADING_ENABLED=false" in text, "kill switch was left on"
+
+
+def test_guided_buy_leaves_an_already_armed_switch_alone():
+    env = (
+        "RH_API_KEY=rh-api-1\nRH_PRIVATE_KEY=\nTRADING_ENABLED=true\n"
+        "ALLOWED_SYMBOLS=BTC-USD\nMAX_ORDER_USD=60\nMAX_DAILY_USD=200\n"
+        "MAX_ORDERS_PER_DAY=10\nSLIPPAGE_BUFFER_PCT=1\n"
+        "MAX_LIMIT_DEVIATION_PCT=5\n"
+    )
+    code, text, out, client = _buy(["1", "50", "buy"], env_text=env)
+    assert len(client.placed) == 1
+    assert "TRADING_ENABLED=true" in text, "should not disarm what it did not arm"
+
+
+def test_anything_but_buy_cancels_and_leaves_the_switch_off():
+    code, text, out, client = _buy(["1", "50", "yes"])
+    assert code == 0
+    assert client.placed == [], "cancel must not place"
+    assert "TRADING_ENABLED=false" in text
+    assert "cancelled" in out
+
+
+def test_quitting_at_the_symbol_prompt_places_nothing():
+    code, text, out, client = _buy(["q"])
+    assert client.placed == []
+    assert "TRADING_ENABLED=false" in text
+
+
+def test_amount_over_the_cap_is_rejected_then_retried():
+    # 500 is over the $60 cap; the flow asks again rather than proceeding.
+    code, text, out, client = _buy(["1", "500", "50", "buy"])
+    assert "over your limit" in out
+    assert len(client.placed) == 1
+    assert code == 0
+
+
+def test_non_numeric_amount_is_rejected():
+    code, text, out, client = _buy(["1", "fifty", "50", "buy"])
+    assert "not a number" in out
+    assert len(client.placed) == 1
+
+
+def test_guided_buy_shows_the_round_trip_cost():
+    code, text, out, client = _buy(["1", "50", "buy"])
+    assert "round-trip cost" in out, out
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0
@@ -1059,7 +1207,7 @@ if __name__ == "__main__":
         try:
             func()
             print(f"  ok    {name}")
-        except Exception as exc:
+        except BaseException as exc:  # SystemExit would otherwise end the run
             failed += 1
             print(f"  FAIL  {name}: {type(exc).__name__}: {exc}")
     print()
