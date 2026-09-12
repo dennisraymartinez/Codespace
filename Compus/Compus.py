@@ -1,7 +1,12 @@
+from pathlib import Path
+
 import pandas as pd
 
+# This script reads and writes its data alongside itself
+DATA_DIR = Path(__file__).resolve().parent
+
 # Load the CSV file
-file_path = r'D:\Codespace\Compus\JCB703_COMPAS.csv'
+file_path = DATA_DIR / 'JCB703_COMPAS.csv'
 df = pd.read_csv(file_path)
 
 # Display all column names in a single row
@@ -34,7 +39,7 @@ disparate_impact_ratio = african_american_ppp / caucasian_ppp
 print(f"\nDisparate Impact Ratio (African-American / Caucasian): {disparate_impact_ratio}")
 
 # Save the updated DataFrame back to a CSV file
-updated_file_path = r'D:\Codespace\Compus\JCB703_COMPAS_updated.csv'
+updated_file_path = DATA_DIR / 'JCB703_COMPAS_updated.csv'
 df.to_csv(updated_file_path, index=False)
 
 print(f"Updated dataset has been saved to {updated_file_path}")

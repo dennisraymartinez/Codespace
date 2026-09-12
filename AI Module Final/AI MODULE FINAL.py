@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
@@ -8,7 +11,7 @@ from scipy import stats
 print("Current working directory:", os.getcwd())
 
 # Load the new CSV file
-file_path = r'D:\Codespace\PRACTICE FINAL\JCB702_BankTelemarketing2_PRACTICE.csv'
+file_path = Path(__file__).resolve().parent.parent / 'PRACTICE FINAL' / 'JCB702_BankTelemarketing2_PRACTICE.csv'
 df = pd.read_csv(file_path)
 
 # Display summary statistics
@@ -56,5 +59,5 @@ plt.xlabel('Importance')
 plt.ylabel('Feature')
 plt.title('Feature Importance Scores')
 plt.gca().invert_yaxis()
-plt.savefig('feature_importance.png')
+plt.savefig(Path(__file__).resolve().parent / 'feature_importance.png')
 print("Feature importance plot saved as 'feature_importance.png'")

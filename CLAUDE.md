@@ -69,21 +69,22 @@ expected churn; don't treat them as accidental.
 Pre-existing breakage. Fix only what the current task actually covers, and say so —
 do not sweep the repo.
 
-1. **Hardcoded Windows paths.** `PRACTICE 1/BankTelemarketing1.py:9`,
-   `Compus/Compus.py:4,37`, and `AI Module Final/AI MODULE FINAL.py:11` all read
-   `r'D:\Codespace\...'`. None of them resolve off the original Windows box. When a task
-   requires running one, prefer a path relative to the script:
-   `Path(__file__).resolve().parent / "file.csv"`.
-2. **`AI Module Final/AI MODULE FINAL.py` calls `os.getcwd()` without `import os`** —
-   it raises `NameError` on line 8, before anything else runs.
-3. **`PRACTICE 1/BankTelemarketing1.py` references `JCB702_BankTelemarketing1.csv`,
-   which is not in this repo.** The closest available data is
-   `PRACTICE FINAL/JCB702_BankTelemarketing1_PRACTICE.csv` — confirm with the user before
-   substituting, since the columns may differ.
-4. **`Hello World/bootcamp1.py` is empty** (0 bytes) and `Hello World/Mouse_Mover` calls
+1. **`PRACTICE 1/BankTelemarketing1.py` reads `JCB702_BankTelemarketing1.csv`, which is
+   not checked into this repo.** The path is now repo-root-relative, but the file itself
+   is still absent, so the script raises `FileNotFoundError`. The closest available data
+   is `PRACTICE FINAL/JCB702_BankTelemarketing1_PRACTICE.csv`; confirm with the user
+   before substituting, since the columns may differ.
+2. **`Hello World/bootcamp1.py` is empty** (0 bytes) and `Hello World/Mouse_Mover` calls
    `main()` at import time with an infinite loop — never import it.
-5. `DATA/Gemini Test 1.py` embeds its dataset as a triple-quoted CSV string. Edit the
+3. `DATA/Gemini Test 1.py` embeds its dataset as a triple-quoted CSV string. Edit the
    literal, not a file on disk.
+4. `Hello World.py` still saves `complex_plot.jpg` relative to the current working
+   directory rather than to the script. Harmless while it is run from the repo root,
+   where the script also lives.
+
+Fixed previously, noted so the history reads clearly: the `D:\Codespace\...` Windows
+paths in `Compus/Compus.py`, `AI Module Final/AI MODULE FINAL.py`, and
+`PRACTICE 1/BankTelemarketing1.py`, and the missing `import os` in `AI MODULE FINAL.py`.
 
 ## Conventions
 
@@ -91,6 +92,9 @@ do not sweep the repo.
   `print()` for output, `matplotlib` for charts. No classes, no logging framework,
   no type hints — this is coursework, and rewriting it obscures the author's own work.
 - Keep datasets beside the script that consumes them.
+- Resolve every data and output path from `Path(__file__).resolve().parent`, never from
+  the current working directory and never as an absolute path. Scripts must run from
+  any cwd.
 - Do not reformat, refactor, or "modernize" files a task didn't ask you to touch.
 - Do not commit virtualenvs, `.h5` model files, or `.db` files — `.gitignore` already
   covers them; keep it that way.
