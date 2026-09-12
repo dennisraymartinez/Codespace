@@ -81,6 +81,12 @@ Sizing in dollars is not a way around the rails. `--usd 100` against
 Exit codes: `0` sent (or dry run completed), `1` refused by the rails,
 `2` Robinhood rejected it, `3` connection failed.
 
+A market order comes back `open`, not `filled` — the response is an
+acknowledgement, not an execution. Check what actually happened with
+`python orders.py`, or `python orders.py --watch <id>` to poll until it
+settles. Robinhood may also adjust the quantity slightly from what was
+sent, so the filled amount is the one that counts.
+
 ## Files
 
 | File | Purpose |
@@ -92,9 +98,10 @@ Exit codes: `0` sent (or dry run completed), `1` refused by the rails,
 | `place_order.py` | CLI for one order. Dry run unless `--execute`. |
 | `set_api_key.py` | Writes `RH_API_KEY` into `.env` safely. Refuses a private key. |
 | `arm.py` | Turns the kill switch on (asks first) or off (immediately). |
+| `orders.py` | Shows recent orders and how they filled. Read-only. |
 | `envfile.py` | Reads and writes single `.env` values without touching the rest. |
 | `check_setup.py` | Preflight: rails, usage, credentials, signing, market data. Exit 0 = all clear. |
-| `test_safety.py` | 61 tests over the rails and the choke point. Fakes the client, no network. |
+| `test_safety.py` | 68 tests over the rails and the choke point. Fakes the client, no network. |
 
 `robinhood_client.py` can place an order without any rail — it is deliberately
 dumb transport. Application code must go through `Trader`, which is where the

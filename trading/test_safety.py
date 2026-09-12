@@ -828,6 +828,54 @@ def test_signature_covers_the_path_without_a_stray_marker():
     verify.verify(expected.encode(), base64.b64decode(headers["x-signature"]))
 
 
+# -- order display ----------------------------------------------------
+
+
+def test_order_summary_never_shows_scientific_notation():
+    """Regression: an unfilled quantity rendered as 0E-18."""
+    import orders
+
+    line = orders.summarise(
+        {
+            "id": "6aa5d5f2-ce70",
+            "created_at": "2026-09-12T18:45:06.980244-04:00",
+            "side": "buy",
+            "symbol": "BTC-USD",
+            "state": "open",
+            "filled_asset_quantity": "0.000000000000000000",
+            "market_order_config": {"asset_quantity": "0.000025410000000000"},
+        }
+    )
+    assert "E-" not in line and "E+" not in line, line
+    assert "0.00002541" in line
+
+
+def test_order_summary_reports_the_actual_spend():
+    import orders
+
+    line = orders.summarise(
+        {
+            "id": "abc12345",
+            "created_at": "2026-09-12T18:45:06",
+            "side": "buy",
+            "symbol": "BTC-USD",
+            "state": "filled",
+            "filled_asset_quantity": "0.00002541",
+            "average_price": "77935.70",
+            "market_order_config": {"asset_quantity": "0.00002541"},
+        }
+    )
+    assert "$1.98" in line, line
+
+
+def test_final_states_cover_the_ways_an_order_ends():
+    import orders
+
+    for state in ("filled", "canceled", "cancelled", "rejected", "failed"):
+        assert state in orders.FINAL_STATES
+    assert "open" not in orders.FINAL_STATES
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0
