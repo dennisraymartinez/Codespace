@@ -176,6 +176,35 @@ revokes it immediately — then enroll a fresh keypair.
 Sources: Robinhood's crypto API support article and the launch announcement
 (robinhood.com/us/en/support/articles/crypto-api).
 
+## Which API actions to enable
+
+Robinhood's "Allowed API actions" map to endpoints this project calls. Tick
+these:
+
+| Robinhood action | Needed by |
+| --- | --- |
+| Read crypto accounts | `check_setup.py` authentication (`GET /accounts/`) |
+| Read crypto quotes | every order — `best_bid_ask` prices the notional cap |
+| Read crypto products | `--usd` sizing — quantity increment, min/max order size |
+| Read crypto holdings | the sell rail — refuses selling more than you hold |
+| Read crypto orders | reconciling an order whose POST never answered |
+| **Place crypto orders without fee tiers** | placing orders (see below) |
+
+All five read actions are genuinely required, not optional: the rails refuse
+an order they cannot price, cannot size against the exchange's own
+constraints, or (for a sell) cannot check holdings for. A credential with
+only the order-placing action fails `check_setup.py` at section 5.
+
+**Which "place" action:** they select the API version, not just a fee
+schedule. "Place crypto orders **with** fee tiers" is v2; "**without** fee
+tiers" is v1. This project posts to `/api/v1/crypto/trading/orders/`, so it
+needs the **without fee tiers** action. Ticking only the v2 action leaves
+orders failing while every read succeeds.
+
+The trade-off is real: only v2 orders count toward the 30-day volume that
+sets your fee tier (0.03%–0.85%). v1 is what this code speaks today.
+Enabling both actions costs nothing and leaves the door open.
+
 ## TLS certificate errors
 
 Symptom — from `pip install`, or from `check_setup.py` once installed:
