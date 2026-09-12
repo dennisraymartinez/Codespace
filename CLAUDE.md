@@ -21,7 +21,7 @@ file is a standalone script run directly. Do not invent a package layout, add
 | `AI Module Final/` | Decision-tree final: script + `decision_tree.png`, `feature_importance.png`, `roc_curve.png` |
 | `PRACTICE 1/` | `BankTelemarketing1.py` — logistic regression vs decision tree, ROC/AUC; reads its data from `PRACTICE FINAL/` |
 | `PRACTICE 2/` | Output PNGs only, no script |
-| `PRACTICE FINAL/` | The two `JCB702_BankTelemarketing*_PRACTICE.csv` datasets — both are class-balanced 50/50, all-numeric, no nulls |
+| `PRACTICE FINAL/` | The two `JCB702_BankTelemarketing*_PRACTICE.csv` datasets — all-numeric, no nulls, balanced 50/50 by row duplication (see landmines) |
 | `Compus/` | `Compus.py` — COMPAS disparate-impact ratio; reads and rewrites its CSVs |
 | `DATA/` | Amazon headphone scrapes (`amazon_gemscrape.py`, `amazon_scrape2.py`), `Gemini Test 1.py` (CSV embedded as a string literal), CSVs and histogram PNGs |
 | `JumpOff1/eCornell/` | `eCornell.py` — Keras/TensorFlow CNN on CIFAR-10, plus its own `requirements.txt` |
@@ -69,11 +69,18 @@ expected churn; don't treat them as accidental.
 Pre-existing breakage. Fix only what the current task actually covers, and say so —
 do not sweep the repo.
 
-1. **`Hello World/bootcamp1.py` is empty** (0 bytes) and `Hello World/Mouse_Mover` calls
+1. **`PRACTICE FINAL/JCB702_BankTelemarketing1_PRACTICE.csv` is balanced by duplicating
+   minority rows, which leaks across any random train/test split.** 47% of its 73,096
+   rows are exact duplicates, so 54% of test rows appear verbatim in training. An
+   unconstrained model scores ~0.93 AUC by memorising them; deduplicated, the same model
+   scores 0.58. Deduplicated the file is 38,769 rows at 11.8% positive — the real campaign
+   base rate. Cap tree depth, or call `drop_duplicates()` before splitting, and never
+   quote an AUC from this file without saying which of the two you did.
+2. **`Hello World/bootcamp1.py` is empty** (0 bytes) and `Hello World/Mouse_Mover` calls
    `main()` at import time with an infinite loop — never import it.
-2. `DATA/Gemini Test 1.py` embeds its dataset as a triple-quoted CSV string. Edit the
+3. `DATA/Gemini Test 1.py` embeds its dataset as a triple-quoted CSV string. Edit the
    literal, not a file on disk.
-3. `Hello World.py` still saves `complex_plot.jpg` relative to the current working
+4. `Hello World.py` still saves `complex_plot.jpg` relative to the current working
    directory rather than to the script. Harmless while it is run from the repo root,
    where the script also lives.
 
