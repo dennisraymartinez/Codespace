@@ -6,9 +6,14 @@ Signed API client, order placement, and the safety rails that gate it.
 
 Windows (PowerShell):
 
+If `python` opens the Microsoft Store instead of running, use `py` (the
+Windows Python launcher) for the venv step. Once the venv is active,
+`python` and `pip` resolve to it and work normally. Python 3.9 or newer is
+enough — the code is checked against 3.9 syntax.
+
 ```powershell
 cd trading
-python -m venv venv
+python -m venv venv                 # or: py -m venv venv
 .\venv\Scripts\Activate.ps1   # the leading .\ is REQUIRED: without it
                                # PowerShell reads venv\... as a module-
                                # qualified command and fails with
