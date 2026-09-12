@@ -91,9 +91,10 @@ Exit codes: `0` sent (or dry run completed), `1` refused by the rails,
 | `trader.py` | The single choke point. Everything goes through `Trader.submit`. |
 | `place_order.py` | CLI for one order. Dry run unless `--execute`. |
 | `set_api_key.py` | Writes `RH_API_KEY` into `.env` safely. Refuses a private key. |
+| `arm.py` | Turns the kill switch on (asks first) or off (immediately). |
 | `envfile.py` | Reads and writes single `.env` values without touching the rest. |
 | `check_setup.py` | Preflight: rails, usage, credentials, signing, market data. Exit 0 = all clear. |
-| `test_safety.py` | 55 tests over the rails and the choke point. Fakes the client, no network. |
+| `test_safety.py` | 61 tests over the rails and the choke point. Fakes the client, no network. |
 
 `robinhood_client.py` can place an order without any rail — it is deliberately
 dumb transport. Application code must go through `Trader`, which is where the

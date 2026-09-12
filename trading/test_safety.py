@@ -702,6 +702,70 @@ def test_empty_input_changes_nothing():
     assert code == 1 and "RH_API_KEY=\n" in text
 
 
+# -- the kill switch command -----------------------------------------
+
+
+def _arm(args, env_text="TRADING_ENABLED=false\nMAX_ORDER_USD=60\nRH_API_KEY=k\n"):
+    import contextlib, io, tempfile as _tf
+    import arm as arm_mod
+
+    tmp = Path(_tf.mkdtemp()) / ".env"
+    tmp.write_text(env_text)
+    original = arm_mod.ENV_PATH
+    arm_mod.ENV_PATH = tmp
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            code = arm_mod.main(args)
+        return code, tmp.read_text(), buf.getvalue()
+    finally:
+        arm_mod.ENV_PATH = original
+
+
+def test_arm_sets_trading_enabled_true():
+    code, text, _ = _arm(["--yes"])
+    assert code == 0
+    assert "TRADING_ENABLED=true" in text
+
+
+def test_disarm_sets_false_without_confirmation():
+    code, text, out = _arm(["--off"], "TRADING_ENABLED=true\nMAX_ORDER_USD=60\n")
+    assert code == 0
+    assert "TRADING_ENABLED=false" in text
+    assert "DISARMED" in out
+
+
+def test_arming_preserves_other_settings():
+    code, text, _ = _arm(
+        ["--yes"],
+        "TRADING_ENABLED=false\nRH_API_KEY=rh-api-1\nRH_PRIVATE_KEY=abc\n"
+        "MAX_ORDER_USD=60\nALLOWED_SYMBOLS=BTC-USD\n",
+    )
+    assert code == 0
+    assert "RH_API_KEY=rh-api-1" in text
+    assert "RH_PRIVATE_KEY=abc" in text
+    assert "MAX_ORDER_USD=60" in text
+    assert "ALLOWED_SYMBOLS=BTC-USD" in text
+
+
+def test_status_changes_nothing():
+    code, text, out = _arm(["--status"])
+    assert code == 0
+    assert "TRADING_ENABLED=false" in text
+    assert "DISARMED" in out
+
+
+def test_disarm_is_idempotent():
+    code, text, _ = _arm(["--off"], "TRADING_ENABLED=false\n")
+    assert code == 0 and "TRADING_ENABLED=false" in text
+
+
+def test_arming_when_already_armed_is_a_noop():
+    code, text, out = _arm(["--yes"], "TRADING_ENABLED=true\n")
+    assert code == 0 and "Already armed" in out
+    assert "TRADING_ENABLED=true" in text
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0
