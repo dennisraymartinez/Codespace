@@ -36,3 +36,20 @@
 **/*.wsuo
 **/DocumentLayout*.json
 **/copilot-chat/
+# Secrets — credentials, API keys, private keys.
+# NOTE: the "**/.env/" rule above has a trailing slash, so it only matches a
+# DIRECTORY named .env. It does NOT ignore a .env FILE. These rules do.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+!cacert.pem
+*.key
+secrets.json
+
+# Python bytecode
+__pycache__/
+*.py[cod]
