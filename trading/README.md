@@ -4,19 +4,37 @@ Signed API client, order placement, and the safety rails that gate it.
 
 ## One-time setup
 
+Windows (PowerShell):
+
+```powershell
+cd trading
+python -m venv venv
+venv\Scripts\Activate.ps1     # if blocked: Set-ExecutionPolicy -Scope Process RemoteSigned
+pip install -r requirements.txt
+
+python generate_keys.py        # prints a keypair; enroll the PUBLIC key on
+                               # robinhood.com (classic web), crypto API keys
+
+copy .env.example .env         # paste the API key + the PRIVATE key
+python check_setup.py          # reads only, places nothing
+python test_safety.py          # rails test suite, no network
+```
+
+macOS / Linux:
+
 ```bash
 cd trading
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 
-python generate_keys.py     # prints a keypair; enroll the PUBLIC key on
-                            # robinhood.com (classic web) > Account >
-                            # Crypto > API keys
-
-cp .env.example .env        # paste the API key + the PRIVATE key
-python check_setup.py       # reads only, places nothing
-python test_safety.py       # rails test suite, no network
+python generate_keys.py
+cp .env.example .env
+python check_setup.py
+python test_safety.py
 ```
+
+The venv must be active in every new terminal before `python place_order.py`
+— otherwise you get `ModuleNotFoundError: nacl`.
 
 ## Placing an order
 
