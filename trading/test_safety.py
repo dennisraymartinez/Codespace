@@ -918,6 +918,93 @@ def test_sub_dollar_prices_keep_their_precision():
     assert "$405.41" in line, line
 
 
+# -- the allow-list ---------------------------------------------------
+
+
+def _pairs(argv, env_text="ALLOWED_SYMBOLS=BTC-USD,ETH-USD\nMAX_ORDER_USD=60\n",
+           listed=("BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD")):
+    import contextlib, io, tempfile as _tf
+    import pairs as pairs_mod
+
+    tmp = Path(_tf.mkdtemp()) / ".env"
+    tmp.write_text(env_text)
+    original_env, original_client = pairs_mod.ENV_PATH, pairs_mod.client_from_env
+    pairs_mod.ENV_PATH = tmp
+
+    class Stub:
+        def get_trading_pairs(self, *a):
+            return {"results": [{"symbol": s, "status": "tradable",
+                                 "min_order_size": "0.000001"} for s in listed]}
+
+        def get_best_bid_ask(self, *a):
+            return {"results": []}
+
+    pairs_mod.client_from_env = lambda: Stub()
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            code = pairs_mod.main(argv)
+        return code, tmp.read_text(), buf.getvalue()
+    finally:
+        pairs_mod.ENV_PATH = original_env
+        pairs_mod.client_from_env = original_client
+
+
+def test_allowing_a_real_pair_adds_it():
+    code, text, _ = _pairs(["--allow", "SOL-USD"])
+    assert code == 0
+    assert "SOL-USD" in text
+    assert "BTC-USD" in text and "ETH-USD" in text  # existing kept
+
+
+def test_allowing_a_pair_robinhood_does_not_list_is_refused():
+    code, text, out = _pairs(["--allow", "TSLA-USD"])
+    assert code == 1
+    assert "does not list" in out
+    assert "TSLA" not in text, "a refused symbol must not reach .env"
+
+
+def test_refusal_suggests_a_near_match():
+    code, _, out = _pairs(["--allow", "SOL-USDT"])
+    assert code == 1
+    assert "SOL-USD" in out
+
+
+def test_allowing_is_case_insensitive_and_idempotent():
+    code, text, out = _pairs(["--allow", "btc-usd"])
+    assert code == 0 and "already allowed" in out
+    assert text.count("BTC-USD") == 1
+
+
+def test_denying_removes_without_touching_the_api():
+    code, text, _ = _pairs(["--deny", "ETH-USD"])
+    assert code == 0
+    assert "ETH-USD" not in text
+    assert "BTC-USD" in text
+
+
+def test_denying_something_absent_is_a_noop():
+    code, text, out = _pairs(["--deny", "SOL-USD"])
+    assert code == 0 and "nothing to do" in out
+    assert "ALLOWED_SYMBOLS=BTC-USD,ETH-USD" in text
+
+
+def test_allow_list_edit_preserves_other_settings():
+    code, text, _ = _pairs(
+        ["--allow", "DOGE-USD"],
+        "ALLOWED_SYMBOLS=BTC-USD\nRH_API_KEY=rh-api-1\nMAX_ORDER_USD=60\n",
+    )
+    assert code == 0
+    assert "RH_API_KEY=rh-api-1" in text and "MAX_ORDER_USD=60" in text
+
+
+def test_a_symbol_not_allowed_is_still_refused_by_the_rails():
+    """The allow-list is the only thing gating symbols — confirm it bites."""
+    intent = OrderIntent.build("SOL-USD", "buy", "1")
+    reasons = refusal(trader_for(FakeClient()), intent)
+    assert any("ALLOWED_SYMBOLS" in r for r in reasons), reasons
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0

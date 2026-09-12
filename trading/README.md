@@ -99,9 +99,10 @@ sent, so the filled amount is the one that counts.
 | `set_api_key.py` | Writes `RH_API_KEY` into `.env` safely. Refuses a private key. |
 | `arm.py` | Turns the kill switch on (asks first) or off (immediately). |
 | `orders.py` | Shows recent orders and how they filled. Read-only. |
+| `pairs.py` | Lists tradable crypto pairs; adds or removes allow-list entries. |
 | `envfile.py` | Reads and writes single `.env` values without touching the rest. |
 | `check_setup.py` | Preflight: rails, usage, credentials, signing, market data. Exit 0 = all clear. |
-| `test_safety.py` | 68 tests over the rails and the choke point. Fakes the client, no network. |
+| `test_safety.py` | 78 tests over the rails and the choke point. Fakes the client, no network. |
 
 `robinhood_client.py` can place an order without any rail — it is deliberately
 dumb transport. Application code must go through `Trader`, which is where the
@@ -182,6 +183,36 @@ revokes it immediately — then enroll a fresh keypair.
 
 Sources: Robinhood's crypto API support article and the launch announcement
 (robinhood.com/us/en/support/articles/crypto-api).
+
+## Choosing what to trade
+
+This is Robinhood's **crypto** API. It trades crypto pairs only — there is
+no stock trading here, and no endpoint for it.
+
+`ALLOWED_SYMBOLS` starts at `BTC-USD,ETH-USD` as a conservative default, not
+because those are the only options. To see everything Robinhood lists and
+what your account may touch:
+
+```powershell
+python pairs.py              # every tradable pair
+python pairs.py --quotes     # with live bid/ask and spread
+```
+
+The spread column is worth reading before choosing. A pair quoted 2% wide
+costs 2% on a round trip, which is a bigger number than most short-term
+moves.
+
+To widen the allow-list:
+
+```powershell
+python pairs.py --allow SOL-USD
+python pairs.py --deny SOL-USD
+```
+
+`--allow` checks the symbol against Robinhood first and refuses a pair they
+do not list or that is not currently tradable, rather than writing a symbol
+into `.env` that fails later at order time. Widening the allow-list does not
+widen the caps — `MAX_ORDER_USD` and the daily limits are unchanged.
 
 ## Which API actions to enable
 
