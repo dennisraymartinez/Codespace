@@ -36,3 +36,8 @@
 **/*.wsuo
 **/DocumentLayout*.json
 **/copilot-chat/
+# Python bytecode and test caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
