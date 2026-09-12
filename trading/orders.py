@@ -48,8 +48,12 @@ def summarise(order: dict[str, Any]) -> str:
         f"{state:10}"
     )
     if filled > 0 and price:
-        spent = filled * Decimal(str(price))
-        line += f" filled {plain(filled)} @ {price} = ${spent.quantize(Decimal('0.01'))}"
+        as_decimal = Decimal(str(price))
+        spent = filled * as_decimal
+        # Trim the trailing zeros Robinhood pads prices with, and show a
+        # price to the cent — the extra 12 decimal places are noise.
+        shown = plain(as_decimal.quantize(Decimal("0.01")))
+        line += f" filled {plain(filled)} @ {shown} = ${spent.quantize(Decimal('0.01'))}"
     elif asked > 0:
         line += f" asked {plain(asked)}, filled {plain(filled)}"
     return line

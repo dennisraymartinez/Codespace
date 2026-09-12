@@ -866,6 +866,7 @@ def test_order_summary_reports_the_actual_spend():
         }
     )
     assert "$1.98" in line, line
+    assert "@ 77935.70 " in line, line  # not 77935.700000000000000000
 
 
 def test_final_states_cover_the_ways_an_order_ends():
@@ -874,6 +875,26 @@ def test_final_states_cover_the_ways_an_order_ends():
     for state in ("filled", "canceled", "cancelled", "rejected", "failed"):
         assert state in orders.FINAL_STATES
     assert "open" not in orders.FINAL_STATES
+
+
+def test_padded_price_is_trimmed_for_display():
+    """Robinhood pads prices with a dozen trailing zeros."""
+    import orders
+
+    line = orders.summarise(
+        {
+            "id": "abc",
+            "created_at": "2026-09-12T18:45:06",
+            "side": "buy",
+            "symbol": "BTC-USD",
+            "state": "filled",
+            "filled_asset_quantity": "0.00002541",
+            "average_price": "77920.768969770000000000",
+            "market_order_config": {"asset_quantity": "0.00002541"},
+        }
+    )
+    assert "77920.77" in line, line
+    assert "0000000000" not in line, line
 
 
 if __name__ == "__main__":
