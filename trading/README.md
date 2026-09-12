@@ -102,7 +102,7 @@ sent, so the filled amount is the one that counts.
 | `pairs.py` | Lists tradable crypto pairs; adds or removes allow-list entries. |
 | `envfile.py` | Reads and writes single `.env` values without touching the rest. |
 | `check_setup.py` | Preflight: rails, usage, credentials, signing, market data. Exit 0 = all clear. |
-| `test_safety.py` | 78 tests over the rails and the choke point. Fakes the client, no network. |
+| `test_safety.py` | 83 tests over the rails and the choke point. Fakes the client, no network. |
 
 `robinhood_client.py` can place an order without any rail — it is deliberately
 dumb transport. Application code must go through `Trader`, which is where the

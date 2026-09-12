@@ -167,8 +167,15 @@ class Trader:
 
     # -- rails --------------------------------------------------------
 
-    def preview(self, intent: OrderIntent) -> Approval:
-        """Run every rail without sending anything. Raises RailViolation."""
+    def preview(self, intent: OrderIntent, *, sending: bool | None = None) -> Approval:
+        """Run every rail without sending anything. Raises RailViolation.
+
+        `sending` defaults to whether this Trader would actually place the
+        order, so a dry-run Trader previews through the kill switch while a
+        live one is stopped by it.
+        """
+        if sending is None:
+            sending = not self.dry_run
         bid, ask = self.quote(intent.symbol)
         held = self.held_quantity(intent.symbol) if intent.side == "sell" else None
         return self.rails.check(
@@ -177,6 +184,7 @@ class Trader:
             ask=ask,
             held_quantity=held,
             day=self.ledger.load(),
+            sending=sending,
         )
 
     # -- submission ---------------------------------------------------
@@ -188,7 +196,7 @@ class Trader:
         rejected by Robinhood).
         """
         try:
-            approval = self.preview(intent)
+            approval = self.preview(intent, sending=not self.dry_run)
         except RailViolation as exc:
             self._audit("rejected", intent, reasons=exc.reasons)
             raise

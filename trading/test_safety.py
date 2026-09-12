@@ -1005,6 +1005,53 @@ def test_a_symbol_not_allowed_is_still_refused_by_the_rails():
     assert any("ALLOWED_SYMBOLS" in r for r in reasons), reasons
 
 
+# -- kill switch vs dry run -------------------------------------------
+
+
+def test_dry_run_previews_through_the_kill_switch():
+    """Looking at an order must not require disarming first."""
+    trader = trader_for(FakeClient(), rails(trading_enabled=False), dry_run=True)
+    result = trader.submit(buy("0.01"))
+    assert result["dry_run"] is True
+    assert trader.client.placed == []
+    assert any("kill switch is ON" in n for n in result["notes"]), result["notes"]
+
+
+def test_live_submit_is_still_blocked_by_the_kill_switch():
+    """The invariant that matters: disarmed means nothing is sent."""
+    trader = trader_for(FakeClient(), rails(trading_enabled=False), dry_run=False)
+    reasons = refusal(trader, buy("0.01"))
+    assert any("TRADING_ENABLED is false" in r for r in reasons), reasons
+    assert trader.client.placed == []
+
+
+def test_dry_run_still_enforces_every_other_rail():
+    """Only the kill switch is relaxed for a preview — nothing else."""
+    trader = trader_for(FakeClient(), rails(trading_enabled=False), dry_run=True)
+    # over the notional cap
+    reasons = refusal(trader, buy("1.0"))
+    assert any("MAX_ORDER_USD" in r for r in reasons), reasons
+    # not on the allow-list
+    reasons = refusal(trader, OrderIntent.build("DOGE-USD", "buy", "0.001"))
+    assert any("ALLOWED_SYMBOLS" in r for r in reasons), reasons
+
+
+def test_explicit_sending_flag_overrides_the_default():
+    rail_set = rails(trading_enabled=False)
+    trader = trader_for(FakeClient(), rail_set, dry_run=True)
+    try:
+        trader.preview(buy("0.01"), sending=True)
+        raise AssertionError("expected the kill switch to bite")
+    except RailViolation as exc:
+        assert any("TRADING_ENABLED" in r for r in exc.reasons)
+
+
+def test_armed_dry_run_has_no_kill_switch_note():
+    trader = trader_for(FakeClient(), rails(trading_enabled=True), dry_run=True)
+    result = trader.submit(buy("0.01"))
+    assert not any("kill switch" in n for n in result["notes"]), result["notes"]
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0

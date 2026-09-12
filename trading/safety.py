@@ -192,8 +192,16 @@ class Rails:
         ask: Decimal | None,
         held_quantity: Decimal | None = None,
         day: "DayLedger | None" = None,
+        sending: bool = True,
     ) -> Approval:
-        """Validate an intent. Raises RailViolation listing every failure."""
+        """Validate an intent. Raises RailViolation listing every failure.
+
+        `sending` is False for a preview that cannot place an order. The
+        kill switch is then reported as a note rather than a violation:
+        it exists to stop orders being sent, and a preview sends nothing.
+        Requiring it to be off just to look at an order would push you to
+        arm earlier than you need to. Every other rail still applies.
+        """
         reasons: list[str] = []
         notes: list[str] = []
 
@@ -214,9 +222,16 @@ class Rails:
 
         # --- kill switch --------------------------------------------
         if not self.trading_enabled:
-            reasons.append(
-                "TRADING_ENABLED is false — kill switch is on, no order will be sent"
-            )
+            if sending:
+                reasons.append(
+                    "TRADING_ENABLED is false — kill switch is on, no order "
+                    "will be sent"
+                )
+            else:
+                notes.append(
+                    "kill switch is ON (TRADING_ENABLED=false) — this preview "
+                    "is informational; run: python arm.py before --execute"
+                )
 
         # --- allow-list ---------------------------------------------
         if not self.allowed_symbols:
