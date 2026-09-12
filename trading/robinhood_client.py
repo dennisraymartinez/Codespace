@@ -123,18 +123,38 @@ class RobinhoodCryptoClient:
     def get_account(self) -> dict[str, Any]:
         return self.get("/api/v1/crypto/trading/accounts/")
 
+    @staticmethod
+    def with_query(base: str, key: str, values: tuple[str, ...]) -> str:
+        """Append a query string, or nothing at all when there are no values.
+
+        A bare trailing "?" is NOT harmless here. The signature covers the
+        path, and Robinhood drops an empty query before verifying, so
+        ".../holdings/?" signs a different message than the one checked and
+        the request fails with "Signature is invalid".
+        """
+        if not values:
+            return base
+        return base + "?" + "&".join(f"{key}={v}" for v in values)
+
     def get_holdings(self, *symbols: str) -> dict[str, Any]:
-        query = "".join(f"&asset_code={s}" for s in symbols)
-        return self.get(f"/api/v1/crypto/trading/holdings/?{query.lstrip('&')}")
+        return self.get(
+            self.with_query(
+                "/api/v1/crypto/trading/holdings/", "asset_code", symbols
+            )
+        )
 
     def get_trading_pairs(self, *symbols: str) -> dict[str, Any]:
-        query = "".join(f"&symbol={s}" for s in symbols)
-        return self.get(f"/api/v1/crypto/trading/trading_pairs/?{query.lstrip('&')}")
+        return self.get(
+            self.with_query(
+                "/api/v1/crypto/trading/trading_pairs/", "symbol", symbols
+            )
+        )
 
     def get_best_bid_ask(self, *symbols: str) -> dict[str, Any]:
-        query = "".join(f"&symbol={s}" for s in symbols)
         return self.get(
-            f"/api/v1/crypto/marketdata/best_bid_ask/?{query.lstrip('&')}"
+            self.with_query(
+                "/api/v1/crypto/marketdata/best_bid_ask/", "symbol", symbols
+            )
         )
 
     def get_orders(self) -> dict[str, Any]:

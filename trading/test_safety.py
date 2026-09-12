@@ -766,6 +766,68 @@ def test_arming_when_already_armed_is_a_noop():
     assert "TRADING_ENABLED=true" in text
 
 
+# -- signed request paths ---------------------------------------------
+
+
+def test_no_bare_question_mark_when_there_are_no_parameters():
+    """Regression: a trailing "?" broke signature verification.
+
+    Robinhood drops an empty query string before checking the signature,
+    so ".../holdings/?" signs a message the server never reconstructs and
+    the request comes back 401 "Signature is invalid".
+    """
+    from robinhood_client import RobinhoodCryptoClient as C
+
+    path = C.with_query("/api/v1/crypto/trading/holdings/", "asset_code", ())
+    assert path == "/api/v1/crypto/trading/holdings/"
+    assert not path.endswith("?")
+
+
+def test_query_is_built_for_one_and_many_values():
+    from robinhood_client import RobinhoodCryptoClient as C
+
+    assert (
+        C.with_query("/x/", "asset_code", ("BTC",)) == "/x/?asset_code=BTC"
+    )
+    assert (
+        C.with_query("/x/", "symbol", ("BTC-USD", "ETH-USD"))
+        == "/x/?symbol=BTC-USD&symbol=ETH-USD"
+    )
+
+
+def test_every_read_helper_avoids_the_empty_query():
+    """No helper may emit a trailing "?" when called with no arguments."""
+    import base64
+
+    from robinhood_client import RobinhoodCryptoClient
+
+    client = RobinhoodCryptoClient("k", base64.b64encode(b"s" * 32).decode())
+    seen = []
+    client.get = lambda path: seen.append(path) or {}
+    client.get_holdings()
+    client.get_trading_pairs()
+    client.get_best_bid_ask()
+    assert seen, "no paths captured"
+    for path in seen:
+        assert not path.endswith("?"), path
+
+
+def test_signature_covers_the_path_without_a_stray_marker():
+    """The signed message and the requested path must be the same string."""
+    import base64
+
+    from robinhood_client import RobinhoodCryptoClient
+
+    client = RobinhoodCryptoClient("api-key", base64.b64encode(b"s" * 32).decode())
+    path = client.with_query("/api/v1/crypto/trading/holdings/", "asset_code", ())
+    headers = client._headers("GET", path)
+    expected = f"api-key{headers['x-timestamp']}{path}GET"
+    from nacl.signing import SigningKey
+
+    verify = SigningKey(b"s" * 32).verify_key
+    verify.verify(expected.encode(), base64.b64decode(headers["x-signature"]))
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0
