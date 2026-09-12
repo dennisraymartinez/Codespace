@@ -44,7 +44,17 @@ class FakeClient:
         fail_order=None,
         quote_offline=False,
         order_offline=False,
+        pair=None,
     ):
+        self.pair = (
+            pair
+            if pair is not None
+            else {
+                "quantity_increment": "0.00000001",
+                "min_order_size": "0.000001",
+                "max_order_size": "100",
+            }
+        )
         self.bid, self.ask, self.held = bid, ask, held
         self.fail_order = fail_order
         self.quote_offline = quote_offline
@@ -68,6 +78,11 @@ class FakeClient:
                 }
             ]
         }
+
+    def get_trading_pairs(self, *symbols):
+        if self.pair is None:
+            raise RobinhoodAPIError(500, "boom", "/trading_pairs")
+        return {"results": [{"symbol": symbols[0], **self.pair}]}
 
     def get_holdings(self, *codes):
         if self.held is None:
@@ -393,6 +408,74 @@ def test_get_transport_failure_is_marked_known():
     exc = RobinhoodConnectionError("/x", OSError("boom"), outcome_known=True)
     assert exc.outcome_known is True
     assert "never sent" in str(exc)
+
+
+# -- USD-denominated sizing ------------------------------------------
+
+
+def test_usd_sizing_respects_the_spend_ceiling():
+    # $50 of BTC at ask 100000, with a 1% slippage buffer.
+    client = FakeClient(bid="99990", ask="100000")
+    trader = trader_for(client, rails(max_order_usd=D("60")))
+    quantity = trader.quantity_for_usd("BTC-USD", "buy", D("50"))
+    # The rails' own estimate must land at or under the $50 asked for,
+    # buffer included — otherwise --usd 50 would be refused by the cap.
+    approval = trader.preview(OrderIntent.build("BTC-USD", "buy", quantity))
+    assert approval.estimated_notional <= D("50"), approval.estimated_notional
+    assert approval.estimated_notional > D("49.50"), approval.estimated_notional
+
+
+def test_usd_sizing_rounds_down_to_the_increment():
+    client = FakeClient(bid="100", ask="100", pair={"quantity_increment": "0.01"})
+    trader = trader_for(client, rails(max_order_usd=D("100")))
+    quantity = trader.quantity_for_usd("BTC-USD", "buy", D("10"))
+    # 10 / (100 * 1.01) = 0.09900..., rounds DOWN to 0.09, never up.
+    assert quantity == D("0.09")
+
+
+def test_usd_below_exchange_minimum_is_refused():
+    client = FakeClient(bid="100000", ask="100000", pair={"min_order_size": "0.001"})
+    trader = trader_for(client, rails())
+    try:
+        trader.quantity_for_usd("BTC-USD", "buy", D("5"))
+        raise AssertionError("expected RailViolation")
+    except RailViolation as exc:
+        assert any("exchange minimum" in r for r in exc.reasons), exc.reasons
+
+
+def test_usd_sizing_needs_a_quote():
+    trader = trader_for(FakeClient(quote_offline=True))
+    try:
+        trader.quantity_for_usd("BTC-USD", "buy", D("50"))
+        raise AssertionError("expected RailViolation")
+    except RailViolation as exc:
+        assert any("no usable quote" in r for r in exc.reasons), exc.reasons
+
+
+def test_usd_must_be_positive():
+    trader = trader_for(FakeClient())
+    for amount in (D("0"), D("-5")):
+        try:
+            trader.quantity_for_usd("BTC-USD", "buy", amount)
+            raise AssertionError("expected RailViolation")
+        except RailViolation as exc:
+            assert any("must be > 0" in r for r in exc.reasons), exc.reasons
+
+
+def test_usd_sizing_still_obeys_the_per_order_cap():
+    # Sizing is not a bypass: $50 against a $25 cap is still refused.
+    client = FakeClient(bid="100000", ask="100000")
+    trader = trader_for(client, rails(max_order_usd=D("25")))
+    quantity = trader.quantity_for_usd("BTC-USD", "buy", D("50"))
+    reasons = refusal(trader, OrderIntent.build("BTC-USD", "buy", quantity))
+    assert any("MAX_ORDER_USD" in r for r in reasons), reasons
+
+
+def test_usd_sizing_works_when_pair_metadata_unavailable():
+    client = FakeClient(bid="100000", ask="100000", pair=None)
+    trader = trader_for(client, rails(max_order_usd=D("60")))
+    quantity = trader.quantity_for_usd("BTC-USD", "buy", D("50"))
+    assert quantity > 0
 
 
 if __name__ == "__main__":

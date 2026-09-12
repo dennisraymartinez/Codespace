@@ -21,6 +21,7 @@ import argparse
 import json
 import os
 import sys
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -43,7 +44,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--symbol", required=True, help="e.g. BTC-USD")
     parser.add_argument("--side", required=True, choices=["buy", "sell"])
-    parser.add_argument("--quantity", required=True, help="asset quantity, e.g. 0.0001")
+    sizing = parser.add_mutually_exclusive_group(required=True)
+    sizing.add_argument("--quantity", help="asset quantity, e.g. 0.0001")
+    sizing.add_argument(
+        "--usd",
+        help="dollar amount to spend, e.g. 50 — treated as a ceiling, "
+        "converted to a quantity at the live quote",
+    )
     parser.add_argument("--type", default="market", choices=["market", "limit"])
     parser.add_argument("--limit-price", default=None, help="required for --type limit")
     parser.add_argument(
@@ -82,11 +89,28 @@ def main(argv: list[str] | None = None) -> int:
     rails = Rails.from_env()
     trader = Trader(client, rails, dry_run=not args.execute)
 
+    # --usd needs a live quote to size, so it resolves before the intent.
+    quantity = args.quantity
+    if args.usd is not None:
+        try:
+            quantity = trader.quantity_for_usd(
+                args.symbol.strip().upper(), args.side, Decimal(str(args.usd))
+            )
+        except (InvalidOperation, ValueError):
+            print(f"bad --usd value: {args.usd!r}", file=sys.stderr)
+            return 1
+        except RailViolation as exc:
+            print("REFUSED — could not size the order:")
+            for reason in exc.reasons:
+                print(f"  - {reason}")
+            return 1
+        print(f"sized ${args.usd} -> {quantity} {args.symbol.split('-')[0]}")
+
     try:
         intent = OrderIntent.build(
             symbol=args.symbol,
             side=args.side,
-            quantity=args.quantity,
+            quantity=quantity,
             order_type=args.type,
             limit_price=args.limit_price,
             time_in_force=args.time_in_force,

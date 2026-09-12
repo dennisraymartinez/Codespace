@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -92,6 +92,78 @@ class Trader:
             if result.get("asset_code") == asset_code:
                 return Decimal(str(result.get("total_quantity", 0)))
         return Decimal(0)  # endpoint answered, asset simply not held
+
+    def trading_pair(self, symbol: str) -> dict[str, Any] | None:
+        """Exchange constraints for a pair, or None if unreadable."""
+        try:
+            payload = self.client.get_trading_pairs(symbol)
+        except RobinhoodError:
+            return None
+        for result in payload.get("results", []):
+            if result.get("symbol") == symbol:
+                return result
+        return None
+
+    # -- USD-denominated sizing --------------------------------------
+
+    def quantity_for_usd(self, symbol: str, side: str, usd: Decimal) -> Decimal:
+        """Convert a dollar amount into an asset quantity.
+
+        `usd` is treated as a CEILING on spend, not a target: the quantity
+        is divided by the quote already padded with the slippage buffer, so
+        the rails' own notional estimate lands at or under the dollar figure
+        you asked for. Asking for $50 and then being refused for a $50.50
+        estimate would be useless.
+
+        The result is rounded DOWN to the pair's quantity increment, so
+        rounding can never push the spend above the ceiling.
+
+        Raises RailViolation if it cannot be sized safely.
+        """
+        bid, ask = self.quote(symbol)
+        reference = ask if side == "buy" else bid
+        if reference is None or reference <= 0:
+            raise RailViolation(
+                [
+                    f"no usable quote for {symbol} (bid={bid}, ask={ask}) — "
+                    "cannot convert a dollar amount to a quantity"
+                ]
+            )
+        if usd <= 0:
+            raise RailViolation([f"dollar amount must be > 0, got {usd}"])
+
+        buffer = Decimal(1) + self.rails.slippage_buffer_pct / Decimal(100)
+        raw = usd / (reference * buffer)
+
+        pair = self.trading_pair(symbol) or {}
+        increment = pair.get("quantity_increment") or pair.get("asset_increment")
+        step = Decimal(str(increment)) if increment else Decimal("0.00000001")
+        if step <= 0:
+            step = Decimal("0.00000001")
+        quantity = (raw / step).to_integral_value(rounding=ROUND_DOWN) * step
+
+        reasons = []
+        if quantity <= 0:
+            reasons.append(
+                f"${usd} at {reference} is below the smallest tradeable "
+                f"increment ({step}) for {symbol}"
+            )
+        minimum = pair.get("min_order_size")
+        if minimum and quantity < Decimal(str(minimum)):
+            reasons.append(
+                f"${usd} sizes to {quantity} {symbol.split('-')[0]}, below the "
+                f"exchange minimum of {minimum}"
+            )
+        maximum = pair.get("max_order_size")
+        if maximum and quantity > Decimal(str(maximum)):
+            reasons.append(
+                f"${usd} sizes to {quantity}, above the exchange maximum "
+                f"of {maximum}"
+            )
+        if reasons:
+            raise RailViolation(reasons)
+
+        return quantity
 
     # -- rails --------------------------------------------------------
 

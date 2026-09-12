@@ -24,17 +24,31 @@ Dry run is the default, and you have to ask twice for a live order:
 `--execute` on the command line **and** `TRADING_ENABLED=true` in `.env`.
 Either one alone sends nothing.
 
+Size the order either in the asset (`--quantity`) or in dollars (`--usd`).
+
 ```bash
 # show exactly what would be sent, touch nothing
-python place_order.py --symbol BTC-USD --side buy --quantity 0.0001
+python place_order.py --symbol BTC-USD --side buy --usd 50
 
-# live market buy
-python place_order.py --symbol BTC-USD --side buy --quantity 0.0001 --execute
+# live $50 market buy
+python place_order.py --symbol BTC-USD --side buy --usd 50 --execute
+
+# live buy of a specific quantity
+python place_order.py --symbol BTC-USD --side buy --quantity 0.0005 --execute
 
 # live limit sell
 python place_order.py --symbol ETH-USD --side sell --quantity 0.01 \
     --type limit --limit-price 3200 --execute
 ```
+
+`--usd` is a **ceiling on spend, not a target**. The amount is divided by the
+quote already padded with the slippage buffer, and the resulting quantity is
+rounded *down* to the pair's increment — so `--usd 50` produces an order the
+rails estimate at $50.00 or less, never $50.50. It is checked against the
+exchange's own minimum and maximum order size too.
+
+Sizing in dollars is not a way around the rails. `--usd 50` against
+`MAX_ORDER_USD=25` is still refused.
 
 Exit codes: `0` sent (or dry run completed), `1` refused by the rails,
 `2` Robinhood rejected it, `3` connection failed.
