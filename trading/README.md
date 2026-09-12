@@ -146,7 +146,8 @@ Every attempt — refused, dry-run, placed, or unknown — appends to
 Available to Robinhood Crypto customers in the US. Generate the keypair
 *first* — the web form asks you to paste the public key.
 
-1. `python generate_keys.py` and leave the terminal open.
+1. `python generate_keys.py`. It prints the **public** key and writes the
+   private key straight into `.env` — you never see or copy it.
 2. Sign in at robinhood.com on **web classic** (a desktop browser — this
    cannot be done in the mobile app).
 3. Go to your **crypto account settings**.
@@ -154,8 +155,8 @@ Available to Robinhood Crypto customers in the US. Generate the keypair
 5. Paste the **PUBLIC** key from step 1 and name the credential.
 6. Select the **API actions** to enable. Read-only is enough for
    `check_setup.py`; placing orders needs the trading action.
-7. Robinhood shows you the **API key**. Copy it into `.env` as `RH_API_KEY`,
-   and the private key from step 1 as `RH_PRIVATE_KEY`.
+7. Robinhood shows you the **API key**. Put it in `.env` as `RH_API_KEY`.
+   That is the only value you have to copy by hand.
 
 Credentials can be modified, disabled, or deleted later from the same page.
 If the private key is ever exposed, delete the credential there first — that
@@ -220,8 +221,18 @@ requests, so prefer the bundle.
 
 `.env` and any `*.pem` / `*.key` are gitignored. The private key is a bearer
 credential: whoever holds it plus your API key can act on your account within
-the permissions you granted. It is never written to disk by
-`generate_keys.py` — copy it straight from the terminal into `.env`.
+the permissions you granted.
+
+`generate_keys.py` writes it directly into `.env` and does not display it, so
+there is no copy step to get wrong — a key you never see cannot be pasted
+into a chat window, a ticket, or a screenshot. `--print-private` shows it
+instead, for the rare case you need it somewhere else.
+
+**If a private key is exposed, what to do depends on timing.** Before the
+public key is enrolled, the keypair authorizes nothing: throw it away and
+generate another, no cleanup needed. After enrolment, delete that credential
+in your crypto account settings *first* — that revokes it immediately — then
+enroll a fresh keypair.
 
 Grant the API credential read-only permission first. `check_setup.py` needs
 nothing more. Add trading permission only when you are ready to place real

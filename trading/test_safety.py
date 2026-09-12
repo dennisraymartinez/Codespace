@@ -13,6 +13,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from robinhood_client import RobinhoodAPIError, RobinhoodConnectionError
+from generate_keys import existing_private_key, write_private_key
 from safety import Ledger, OrderIntent, RailViolation, Rails
 from trader import Trader
 
@@ -476,6 +477,91 @@ def test_usd_sizing_works_when_pair_metadata_unavailable():
     trader = trader_for(client, rails(max_order_usd=D("60")))
     quantity = trader.quantity_for_usd("BTC-USD", "buy", D("50"))
     assert quantity > 0
+
+
+# -- key handling -----------------------------------------------------
+
+
+def test_private_key_is_written_without_disturbing_other_lines():
+    tmp = Path(tempfile.mkdtemp()) / ".env"
+    tmp.write_text("RH_API_KEY=abc\nRH_PRIVATE_KEY=\nTRADING_ENABLED=true\n")
+    write_private_key(tmp, "NEWKEY==")
+    text = tmp.read_text()
+    assert "RH_PRIVATE_KEY=NEWKEY==" in text
+    assert "RH_API_KEY=abc" in text          # untouched
+    assert "TRADING_ENABLED=true" in text    # untouched
+
+
+def test_existing_key_is_not_clobbered_without_force():
+    tmp = Path(tempfile.mkdtemp()) / ".env"
+    tmp.write_text("RH_PRIVATE_KEY=ORIGINAL==\n")
+    try:
+        write_private_key(tmp, "REPLACEMENT==")
+        raise AssertionError("expected a refusal")
+    except SystemExit as exc:
+        assert "--force" in str(exc)
+    assert "ORIGINAL==" in tmp.read_text(), "the old key must survive a refusal"
+
+
+def test_force_replaces_the_key():
+    tmp = Path(tempfile.mkdtemp()) / ".env"
+    tmp.write_text("RH_PRIVATE_KEY=ORIGINAL==\n")
+    write_private_key(tmp, "REPLACEMENT==", force=True)
+    text = tmp.read_text()
+    assert "REPLACEMENT==" in text and "ORIGINAL==" not in text
+
+
+def test_key_line_is_appended_when_absent():
+    tmp = Path(tempfile.mkdtemp()) / ".env"
+    tmp.write_text("RH_API_KEY=abc\n")
+    write_private_key(tmp, "KEY==")
+    assert "RH_PRIVATE_KEY=KEY==" in tmp.read_text()
+
+
+def test_blank_key_counts_as_absent():
+    assert existing_private_key("RH_PRIVATE_KEY=\n") == ""
+    assert existing_private_key("RH_PRIVATE_KEY=   \n") == ""
+    assert existing_private_key("RH_PRIVATE_KEY=abc\n") == "abc"
+
+
+def test_default_run_never_prints_the_private_key():
+    import contextlib, io, re as _re, tempfile as _tf
+    import generate_keys
+
+    tmp = Path(_tf.mkdtemp()) / ".env"
+    original = generate_keys.ENV_PATH
+    generate_keys.ENV_PATH = tmp
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            generate_keys.main([])
+        out = buf.getvalue()
+        written = existing_private_key(tmp.read_text())
+        assert written, "private key should have been written to .env"
+        assert written not in out, "the private key leaked into stdout"
+        # The public key IS printed, and is a different value.
+        keys = _re.findall(r"^  ([A-Za-z0-9+/=]{40,})$", out, _re.M)
+        assert len(keys) == 1, f"expected only the public key, got {len(keys)}"
+        assert keys[0] != written
+    finally:
+        generate_keys.ENV_PATH = original
+
+
+def test_print_private_mode_does_print_it():
+    import contextlib, io, tempfile as _tf
+    import generate_keys
+
+    original = generate_keys.ENV_PATH
+    generate_keys.ENV_PATH = Path(_tf.mkdtemp()) / ".env"
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            generate_keys.main(["--print-private"])
+        out = buf.getvalue()
+        assert "PRIVATE KEY" in out
+        assert not generate_keys.ENV_PATH.exists(), "should not write in print mode"
+    finally:
+        generate_keys.ENV_PATH = original
 
 
 if __name__ == "__main__":
