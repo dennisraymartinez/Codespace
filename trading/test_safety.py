@@ -631,6 +631,77 @@ def test_a_correct_env_file_audits_clean():
     assert found == [], found
 
 
+# -- setting the API key ----------------------------------------------
+
+
+def _set_api_key(arg: str, env_text: str = "RH_API_KEY=\nRH_PRIVATE_KEY=\n"):
+    """Run set_api_key against a throwaway .env; return (exit code, file text)."""
+    import contextlib, io, tempfile as _tf
+    import set_api_key
+
+    tmp = Path(_tf.mkdtemp()) / ".env"
+    tmp.write_text(env_text)
+    original = set_api_key.ENV_PATH
+    set_api_key.ENV_PATH = tmp
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            code = set_api_key.main([arg])
+        return code, tmp.read_text(), buf.getvalue()
+    finally:
+        set_api_key.ENV_PATH = original
+
+
+def test_api_key_is_written():
+    code, text, _ = _set_api_key("rh-api-1f3c9a20-4b7e-4c11-9a3d-2e8f71b0d4aa")
+    assert code == 0
+    assert "RH_API_KEY=rh-api-1f3c9a20-4b7e-4c11-9a3d-2e8f71b0d4aa" in text
+
+
+def test_placeholder_brackets_and_quotes_are_stripped():
+    from envfile import clean
+
+    assert clean("<rh-api-123>") == "rh-api-123"
+    assert clean('"rh-api-123"') == "rh-api-123"
+    assert clean("  rh-api-123  ") == "rh-api-123"
+    code, text, _ = _set_api_key("<rh-api-123>")
+    assert code == 0 and "RH_API_KEY=rh-api-123" in text
+
+
+def test_private_key_pasted_as_api_key_is_refused():
+    import base64
+
+    seed = base64.b64encode(b"k" * 32).decode()
+    code, text, out = _set_api_key(seed)
+    assert code == 1
+    assert "PRIVATE KEY" in out
+    assert seed not in text, "a refused value must not be written"
+
+
+def test_api_key_matching_the_private_key_is_refused():
+    import base64
+
+    seed = base64.b64encode(b"m" * 32).decode()
+    code, _, out = _set_api_key(seed, f"RH_API_KEY=\nRH_PRIVATE_KEY={seed}\n")
+    assert code == 1 and "REFUSED" in out
+
+
+def test_other_settings_survive():
+    code, text, _ = _set_api_key(
+        "rh-api-9",
+        "RH_API_KEY=\nRH_PRIVATE_KEY=abc\nTRADING_ENABLED=true\nMAX_ORDER_USD=60\n",
+    )
+    assert code == 0
+    assert "RH_PRIVATE_KEY=abc" in text
+    assert "TRADING_ENABLED=true" in text
+    assert "MAX_ORDER_USD=60" in text
+
+
+def test_empty_input_changes_nothing():
+    code, text, _ = _set_api_key("   ")
+    assert code == 1 and "RH_API_KEY=\n" in text
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0

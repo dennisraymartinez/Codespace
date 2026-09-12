@@ -90,8 +90,10 @@ Exit codes: `0` sent (or dry run completed), `1` refused by the rails,
 | `safety.py` | The rails, the order intent, and the daily usage ledger. |
 | `trader.py` | The single choke point. Everything goes through `Trader.submit`. |
 | `place_order.py` | CLI for one order. Dry run unless `--execute`. |
+| `set_api_key.py` | Writes `RH_API_KEY` into `.env` safely. Refuses a private key. |
+| `envfile.py` | Reads and writes single `.env` values without touching the rest. |
 | `check_setup.py` | Preflight: rails, usage, credentials, signing, market data. Exit 0 = all clear. |
-| `test_safety.py` | 29 tests over the rails and the choke point. Fakes the client, no network. |
+| `test_safety.py` | 55 tests over the rails and the choke point. Fakes the client, no network. |
 
 `robinhood_client.py` can place an order without any rail — it is deliberately
 dumb transport. Application code must go through `Trader`, which is where the
@@ -155,8 +157,16 @@ Available to Robinhood Crypto customers in the US. Generate the keypair
 5. Paste the **PUBLIC** key from step 1 and name the credential.
 6. Select the **API actions** to enable. Read-only is enough for
    `check_setup.py`; placing orders needs the trading action.
-7. Robinhood shows you the **API key**. Put it in `.env` as `RH_API_KEY`.
-   That is the only value you have to copy by hand.
+7. Robinhood shows you the **API key**. Set it with:
+
+   ```powershell
+   python set_api_key.py
+   ```
+
+   It prompts, strips any brackets or quotes you paste around the value,
+   refuses a private key pasted by mistake, and writes it to the right
+   variable. This is the only value you have to copy by hand, and this is
+   the only step where hand-editing `.env` is easy to get wrong.
 
 Credentials can be modified, disabled, or deleted later from the same page.
 If the private key is ever exposed, delete the credential there first — that

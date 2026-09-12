@@ -16,10 +16,10 @@ from __future__ import annotations
 
 import argparse
 import base64
-import re
 import sys
 from pathlib import Path
 
+from envfile import read_value, set_value
 from nacl.signing import SigningKey
 
 ENV_PATH = Path(__file__).with_name(".env")
@@ -37,8 +37,7 @@ ENROLL_STEPS = """Next steps:
 
 
 def existing_private_key(text: str) -> str:
-    match = re.search(r"^RH_PRIVATE_KEY=(.*)$", text, re.M)
-    return match.group(1).strip() if match else ""
+    return read_value(text, "RH_PRIVATE_KEY")
 
 
 def write_private_key(env_path: Path, private_b64: str, force: bool = False) -> None:
@@ -63,15 +62,9 @@ def write_private_key(env_path: Path, private_b64: str, force: bool = False) -> 
             "stops working — delete that credential at Robinhood too."
         )
 
-    if re.search(r"^RH_PRIVATE_KEY=.*$", text, re.M):
-        text = re.sub(
-            r"^RH_PRIVATE_KEY=.*$", f"RH_PRIVATE_KEY={private_b64}", text, count=1,
-            flags=re.M,
-        )
-    else:
-        text = text.rstrip("\n") + f"\nRH_PRIVATE_KEY={private_b64}\n"
-
-    env_path.write_text(text)
+    if not env_path.exists():
+        env_path.write_text(text)
+    set_value(env_path, "RH_PRIVATE_KEY", private_b64)
 
 
 def main(argv: list[str] | None = None) -> int:
