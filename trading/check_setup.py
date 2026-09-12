@@ -55,6 +55,23 @@ def section(title: str) -> None:
     print(title)
 
 
+def is_tls_interception(exc: BaseException) -> bool:
+    """True when a failure is a cert-verification error, not plain no-network.
+
+    Walks the exception chain: requests wraps the underlying ssl error
+    several layers deep, so the useful string is rarely on the outermost
+    exception.
+    """
+    seen = set()
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
+        text = f"{type(exc).__name__}: {exc}"
+        if "CERTIFICATE_VERIFY_FAILED" in text or "SSLCertVerificationError" in text:
+            return True
+        exc = exc.__cause__ or exc.__context__
+    return False
+
+
 def check_rails() -> Rails | None:
     """Validate the rails. Local only — no network, no credentials needed."""
     section("1. Safety rails")
@@ -180,7 +197,16 @@ def main() -> int:
             fail(f"{exc.status_code} from accounts endpoint: {exc.body}")
         return report()
     except Exception as exc:  # network, TLS, DNS
-        fail(f"could not reach {type(exc).__name__}: {exc}", "check connectivity")
+        if is_tls_interception(exc):
+            fail(
+                "TLS certificate verification failed",
+                "something on this machine (antivirus or a corporate proxy) is "
+                "re-signing HTTPS with a private root that Python does not "
+                "trust. Export the Windows trust store and point requests at "
+                "it — see 'TLS certificate errors' in README.md.",
+            )
+        else:
+            fail(f"could not reach {type(exc).__name__}: {exc}", "check connectivity")
         return report()
 
     # -- market data ---------------------------------------------------

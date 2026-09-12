@@ -15,3 +15,6 @@ __pycache__/
 # Local logs / state
 *.log
 state/
+
+# Machine-specific CA bundle exported from the Windows trust store
+win-ca.pem

@@ -164,6 +164,58 @@ revokes it immediately — then enroll a fresh keypair.
 Sources: Robinhood's crypto API support article and the launch announcement
 (robinhood.com/us/en/support/articles/crypto-api).
 
+## TLS certificate errors
+
+Symptom — from `pip install`, or from `check_setup.py` once installed:
+
+```
+[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed:
+unable to get local issuer certificate
+```
+
+Cause: antivirus or a corporate proxy on the machine is intercepting HTTPS
+and re-signing it with a private root certificate. Windows trusts that root
+(so browsers work), but Python does not use the Windows trust store — it
+uses its own bundled CA list, which has never heard of it.
+
+Fix — hand Python the certificates Windows already trusts:
+
+```powershell
+python -c "import ssl,pathlib;p=[ssl.DER_cert_to_PEM_cert(c) for s in ('ROOT','CA') for c,e,t in ssl.enum_certificates(s) if e=='x509_asn'];pathlib.Path('win-ca.pem').write_text(''.join(p));print(len(p),'certs')"
+
+pip install --cert win-ca.pem -r requirements.txt
+```
+
+The same interception will break the bot's own calls to Robinhood, so point
+`requests` at the bundle too. Per terminal:
+
+```powershell
+$env:REQUESTS_CA_BUNDLE = "$PWD\win-ca.pem"
+```
+
+Or permanently, for your user account:
+
+```powershell
+setx REQUESTS_CA_BUNDLE "$PWD\win-ca.pem"
+```
+
+`win-ca.pem` is gitignored — it is machine-specific, and committing one
+machine's trust store would be misleading everywhere else.
+
+The `cacert.pem` in the repository root does **not** help here: it is a stock
+public-root bundle, equivalent to what Python already uses and already
+failing. Only a bundle containing the intercepting root works.
+
+Last resort, if the export cannot be made to work:
+
+```powershell
+pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org -r requirements.txt
+```
+
+That skips verification for those hosts rather than fixing trust. It is a
+poor trade when the packages being fetched will go on to sign trading
+requests, so prefer the bundle.
+
 ## Secrets
 
 `.env` and any `*.pem` / `*.key` are gitignored. The private key is a bearer
