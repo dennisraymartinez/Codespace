@@ -12,8 +12,9 @@ python -m venv venv
 venv\Scripts\Activate.ps1     # if blocked: Set-ExecutionPolicy -Scope Process RemoteSigned
 pip install -r requirements.txt
 
-python generate_keys.py        # prints a keypair; enroll the PUBLIC key on
-                               # robinhood.com (classic web), crypto API keys
+python generate_keys.py        # prints a keypair; enroll the PUBLIC key at
+                               # robinhood.com WEB CLASSIC > crypto account
+                               # settings > Add key (see "Getting a key" below)
 
 copy .env.example .env         # paste the API key + the PRIVATE key
 python check_setup.py          # reads only, places nothing
@@ -130,6 +131,29 @@ rails will not size an order against a missing price.
 
 Every attempt — refused, dry-run, placed, or unknown — appends to
 `state/orders.jsonl` (gitignored).
+
+## Getting a key from Robinhood
+
+Available to Robinhood Crypto customers in the US. Generate the keypair
+*first* — the web form asks you to paste the public key.
+
+1. `python generate_keys.py` and leave the terminal open.
+2. Sign in at robinhood.com on **web classic** (a desktop browser — this
+   cannot be done in the mobile app).
+3. Go to your **crypto account settings**.
+4. Select **Add key**.
+5. Paste the **PUBLIC** key from step 1 and name the credential.
+6. Select the **API actions** to enable. Read-only is enough for
+   `check_setup.py`; placing orders needs the trading action.
+7. Robinhood shows you the **API key**. Copy it into `.env` as `RH_API_KEY`,
+   and the private key from step 1 as `RH_PRIVATE_KEY`.
+
+Credentials can be modified, disabled, or deleted later from the same page.
+If the private key is ever exposed, delete the credential there first — that
+revokes it immediately — then enroll a fresh keypair.
+
+Sources: Robinhood's crypto API support article and the launch announcement
+(robinhood.com/us/en/support/articles/crypto-api).
 
 ## Secrets
 
