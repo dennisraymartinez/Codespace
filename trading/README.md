@@ -9,7 +9,11 @@ Windows (PowerShell):
 ```powershell
 cd trading
 python -m venv venv
-venv\Scripts\Activate.ps1     # if blocked: Set-ExecutionPolicy -Scope Process RemoteSigned
+.\venv\Scripts\Activate.ps1   # the leading .\ is REQUIRED: without it
+                               # PowerShell reads venv\... as a module-
+                               # qualified command and fails with
+                               # "The module 'venv' could not be loaded"
+                               # if blocked: Set-ExecutionPolicy -Scope Process RemoteSigned
 pip install -r requirements.txt
 
 python generate_keys.py        # prints a keypair; enroll the PUBLIC key at
