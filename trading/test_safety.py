@@ -564,6 +564,73 @@ def test_print_private_mode_does_print_it():
         generate_keys.ENV_PATH = original
 
 
+# -- .env auditing ----------------------------------------------------
+
+
+def _audit(text: str) -> list[str]:
+    import check_setup
+
+    tmp = Path(tempfile.mkdtemp()) / ".env"
+    tmp.write_text(text)
+    check_setup.failures.clear()
+    try:
+        check_setup.audit_env_file(tmp)
+        return list(check_setup.failures)
+    finally:
+        check_setup.failures.clear()
+
+
+def test_private_key_shape_is_recognised():
+    import base64
+
+    from check_setup import looks_like_a_private_key
+
+    seed = base64.b64encode(b"x" * 32).decode()
+    assert looks_like_a_private_key(seed)
+    assert looks_like_a_private_key(base64.b64encode(b"x" * 64).decode())
+    assert not looks_like_a_private_key("rh-api-1f3c9a20-4b7e-4c11-9a3d-2e8f71b0d4aa")
+    assert not looks_like_a_private_key("")
+    assert not looks_like_a_private_key("hunter2")
+
+
+def test_private_key_in_the_api_key_field_is_caught():
+    import base64
+
+    seed = base64.b64encode(b"y" * 32).decode()
+    found = _audit(f"RH_API_KEY={seed}\n")
+    assert any("looks like a PRIVATE KEY" in f for f in found), found
+
+
+def test_misspelled_setting_is_caught():
+    found = _audit("RH_API_KEG=abc\n")
+    assert any("not a setting this project reads" in f for f in found), found
+
+
+def test_unreplaced_placeholder_is_caught():
+    found = _audit("RH_API_KEY=<paste it here>\n")
+    assert any("placeholder" in f for f in found), found
+
+
+def test_identical_secrets_are_caught():
+    import base64
+
+    same = base64.b64encode(b"z" * 32).decode()
+    found = _audit(f"RH_API_KEY={same}\nRH_PRIVATE_KEY={same}\n")
+    assert any("same value" in f for f in found), found
+
+
+def test_a_correct_env_file_audits_clean():
+    import base64
+
+    found = _audit(
+        "RH_API_KEY=rh-api-1f3c9a20-4b7e-4c11-9a3d-2e8f71b0d4aa\n"
+        f"RH_PRIVATE_KEY={base64.b64encode(b'q' * 32).decode()}\n"
+        "TRADING_ENABLED=false\nALLOWED_SYMBOLS=BTC-USD\nMAX_ORDER_USD=60\n"
+        "# a comment\n\n"
+    )
+    assert found == [], found
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0

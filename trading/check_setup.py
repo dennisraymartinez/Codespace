@@ -55,6 +55,87 @@ def section(title: str) -> None:
     print(title)
 
 
+KNOWN_ENV_KEYS = {
+    "RH_API_KEY",
+    "RH_PRIVATE_KEY",
+    "TRADING_ENABLED",
+    "ALLOWED_SYMBOLS",
+    "MAX_ORDER_USD",
+    "SLIPPAGE_BUFFER_PCT",
+    "MAX_LIMIT_DEVIATION_PCT",
+    "MAX_DAILY_USD",
+    "MAX_ORDERS_PER_DAY",
+}
+
+
+def looks_like_a_private_key(value: str) -> bool:
+    """True if a value decodes to a 32- or 64-byte base64 blob.
+
+    That is the shape of an Ed25519 key. An API key is a hyphenated
+    identifier and never decodes to exactly this.
+    """
+    import base64
+    import binascii
+
+    candidate = value.strip()
+    if not candidate or "-" in candidate:
+        return False
+    try:
+        return len(base64.b64decode(candidate, validate=True)) in (32, 64)
+    except (binascii.Error, ValueError):
+        return False
+
+
+def audit_env_file(env_path: Path) -> None:
+    """Catch the ways .env goes wrong that a value check alone would miss:
+    misspelled names, unreplaced placeholders, and the two secrets swapped.
+    """
+    import re
+
+    try:
+        lines = env_path.read_text().splitlines()
+    except OSError:
+        return
+
+    seen: dict[str, str] = {}
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, _, value = line.partition("=")
+        name, value = name.strip(), value.strip()
+        seen[name] = value
+
+        if name.startswith("RH_") and name not in KNOWN_ENV_KEYS:
+            near = [k for k in KNOWN_ENV_KEYS if k[:6] == name[:6]]
+            fail(
+                f"{name} is not a setting this project reads",
+                f"did you mean {near[0]}? A misspelled name is silently ignored."
+                if near
+                else "check the spelling against .env.example",
+            )
+        if re.match(r"^<.*>$", value):
+            fail(
+                f"{name} still holds a placeholder: {value}",
+                "remove the < > brackets and paste the real value",
+            )
+
+    api, priv = seen.get("RH_API_KEY", ""), seen.get("RH_PRIVATE_KEY", "")
+    if api and looks_like_a_private_key(api):
+        fail(
+            "RH_API_KEY looks like a PRIVATE KEY, not an API key",
+            "an API key is a hyphenated identifier from Robinhood's website. "
+            "A 44-character base64 value ending in '=' is a private key — if "
+            "it has been exposed, delete the credential at Robinhood and run "
+            "generate_keys.py --force.",
+        )
+    if api and priv and api == priv:
+        fail(
+            "RH_API_KEY and RH_PRIVATE_KEY hold the same value",
+            "they are different secrets from different places",
+        )
+
+
 def is_tls_interception(exc: BaseException) -> bool:
     """True when a failure is a cert-verification error, not plain no-network.
 
@@ -148,6 +229,7 @@ def main() -> int:
 
     # -- credentials ---------------------------------------------------
     section("3. Credentials")
+    audit_env_file(ENV_PATH)
     api_key = os.getenv("RH_API_KEY", "").strip()
     private_key = os.getenv("RH_PRIVATE_KEY", "").strip()
 
