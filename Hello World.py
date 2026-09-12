@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -28,7 +30,7 @@ def plot_complex_graphic():
     plt.legend()
 
     # Save the plot as a JPG file
-    plt.savefig("complex_plot.jpg")
+    plt.savefig(Path(__file__).resolve().parent / "complex_plot.jpg")
 
     # Show the plot
     plt.show()

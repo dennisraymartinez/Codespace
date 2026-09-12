@@ -81,13 +81,11 @@ do not sweep the repo.
    `main()` at import time with an infinite loop — never import it.
 3. `DATA/Gemini Test 1.py` embeds its dataset as a triple-quoted CSV string. Edit the
    literal, not a file on disk.
-4. `Hello World.py` still saves `complex_plot.jpg` relative to the current working
-   directory rather than to the script — the last remaining cwd-relative output path.
-   Harmless while it is run from the repo root, where the script also lives.
 
 Fixed previously, noted so the history reads clearly: the `D:\Codespace\...` Windows
 paths in `Compus/Compus.py`, `AI Module Final/AI MODULE FINAL.py`, and
-`PRACTICE 1/BankTelemarketing1.py`; the missing `import os` in `AI MODULE FINAL.py`; and
+`PRACTICE 1/BankTelemarketing1.py`; the cwd-relative output paths in `AI MODULE FINAL.py`
+and `Hello World.py`; the missing `import os` in `AI MODULE FINAL.py`; and
 the dataset `BankTelemarketing1.py` reads, which was repointed at
 `PRACTICE FINAL/JCB702_BankTelemarketing1_PRACTICE.csv`.
 
@@ -98,8 +96,10 @@ the dataset `BankTelemarketing1.py` reads, which was repointed at
   no type hints — this is coursework, and rewriting it obscures the author's own work.
 - Keep datasets beside the script that consumes them.
 - Resolve every data and output path from `Path(__file__).resolve().parent`, never from
-  the current working directory and never as an absolute path. Scripts must run from
-  any cwd.
+  the current working directory and never as an absolute path. Every script in the repo
+  now follows this and runs correctly from any cwd; keep it that way.
+- Call `plt.savefig()` before `plt.show()` — `show()` clears the figure on some backends
+  and you get a blank image.
 - Do not reformat, refactor, or "modernize" files a task didn't ask you to touch.
 - Do not commit virtualenvs, `.h5` model files, or `.db` files — `.gitignore` already
   covers them; keep it that way.
