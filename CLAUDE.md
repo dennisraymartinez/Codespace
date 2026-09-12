@@ -19,9 +19,9 @@ file is a standalone script run directly. Do not invent a package layout, add
 | `Hello World.py` | matplotlib sine/cosine demo with an inline assert |
 | `Hello World/` | `Module_Test.py` (KMeans on synthetic blobs), `Mouse_Mover` (pyautogui jiggler, **no `.py` extension**), `bootcamp1.py` (empty) |
 | `AI Module Final/` | Decision-tree final: script + `decision_tree.png`, `feature_importance.png`, `roc_curve.png` |
-| `PRACTICE 1/` | `BankTelemarketing1.py` — logistic regression vs decision tree, ROC/AUC |
+| `PRACTICE 1/` | `BankTelemarketing1.py` — logistic regression vs decision tree, ROC/AUC; reads its data from `PRACTICE FINAL/` |
 | `PRACTICE 2/` | Output PNGs only, no script |
-| `PRACTICE FINAL/` | The two `JCB702_BankTelemarketing*_PRACTICE.csv` datasets |
+| `PRACTICE FINAL/` | The two `JCB702_BankTelemarketing*_PRACTICE.csv` datasets — both are class-balanced 50/50, all-numeric, no nulls |
 | `Compus/` | `Compus.py` — COMPAS disparate-impact ratio; reads and rewrites its CSVs |
 | `DATA/` | Amazon headphone scrapes (`amazon_gemscrape.py`, `amazon_scrape2.py`), `Gemini Test 1.py` (CSV embedded as a string literal), CSVs and histogram PNGs |
 | `JumpOff1/eCornell/` | `eCornell.py` — Keras/TensorFlow CNN on CIFAR-10, plus its own `requirements.txt` |
@@ -69,22 +69,19 @@ expected churn; don't treat them as accidental.
 Pre-existing breakage. Fix only what the current task actually covers, and say so —
 do not sweep the repo.
 
-1. **`PRACTICE 1/BankTelemarketing1.py` reads `JCB702_BankTelemarketing1.csv`, which is
-   not checked into this repo.** The path is now repo-root-relative, but the file itself
-   is still absent, so the script raises `FileNotFoundError`. The closest available data
-   is `PRACTICE FINAL/JCB702_BankTelemarketing1_PRACTICE.csv`; confirm with the user
-   before substituting, since the columns may differ.
-2. **`Hello World/bootcamp1.py` is empty** (0 bytes) and `Hello World/Mouse_Mover` calls
+1. **`Hello World/bootcamp1.py` is empty** (0 bytes) and `Hello World/Mouse_Mover` calls
    `main()` at import time with an infinite loop — never import it.
-3. `DATA/Gemini Test 1.py` embeds its dataset as a triple-quoted CSV string. Edit the
+2. `DATA/Gemini Test 1.py` embeds its dataset as a triple-quoted CSV string. Edit the
    literal, not a file on disk.
-4. `Hello World.py` still saves `complex_plot.jpg` relative to the current working
+3. `Hello World.py` still saves `complex_plot.jpg` relative to the current working
    directory rather than to the script. Harmless while it is run from the repo root,
    where the script also lives.
 
 Fixed previously, noted so the history reads clearly: the `D:\Codespace\...` Windows
 paths in `Compus/Compus.py`, `AI Module Final/AI MODULE FINAL.py`, and
-`PRACTICE 1/BankTelemarketing1.py`, and the missing `import os` in `AI MODULE FINAL.py`.
+`PRACTICE 1/BankTelemarketing1.py`; the missing `import os` in `AI MODULE FINAL.py`; and
+the dataset `BankTelemarketing1.py` reads, which was repointed at
+`PRACTICE FINAL/JCB702_BankTelemarketing1_PRACTICE.csv`.
 
 ## Conventions
 

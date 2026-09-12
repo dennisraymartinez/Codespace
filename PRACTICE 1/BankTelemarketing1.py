@@ -7,11 +7,8 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import roc_auc_score, roc_curve
 import matplotlib.pyplot as plt
 
-# Load the CSV file from the repository root.
-# NOTE: JCB702_BankTelemarketing1.csv is not checked into this repo. The closest
-# available dataset is 'PRACTICE FINAL/JCB702_BankTelemarketing1_PRACTICE.csv',
-# but its columns have not been verified against this script.
-file_path = Path(__file__).resolve().parent.parent / 'JCB702_BankTelemarketing1.csv'
+# Load the CSV file
+file_path = Path(__file__).resolve().parent.parent / 'PRACTICE FINAL' / 'JCB702_BankTelemarketing1_PRACTICE.csv'
 data = pd.read_csv(file_path)
 
 # Assuming 'y_yes' is the target variable and the rest are features
