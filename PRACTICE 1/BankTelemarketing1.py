@@ -11,6 +11,14 @@ import matplotlib.pyplot as plt
 file_path = Path(__file__).resolve().parent.parent / 'PRACTICE FINAL' / 'JCB702_BankTelemarketing1_PRACTICE.csv'
 data = pd.read_csv(file_path)
 
+# Drop duplicate rows before splitting. This file is balanced 50/50 by duplicating
+# minority rows, so a random split leaves 54% of the test rows sitting verbatim in
+# training and inflates every score that follows.
+rows_before = len(data)
+data = data.drop_duplicates()
+print(f'Dropped {rows_before - len(data)} duplicate rows; {len(data)} remain')
+print(f"Positive class rate: {data['y_yes'].mean():.1%}")
+
 # Assuming 'y_yes' is the target variable and the rest are features
 X = data.drop(columns=['y_yes'])
 y = data['y_yes']

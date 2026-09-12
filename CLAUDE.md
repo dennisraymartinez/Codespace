@@ -19,7 +19,7 @@ file is a standalone script run directly. Do not invent a package layout, add
 | `Hello World.py` | matplotlib sine/cosine demo with an inline assert |
 | `Hello World/` | `Module_Test.py` (KMeans on synthetic blobs), `Mouse_Mover` (pyautogui jiggler, **no `.py` extension**), `bootcamp1.py` (empty) |
 | `AI Module Final/` | Decision-tree final: script + `decision_tree.png`, `feature_importance.png`, `roc_curve.png` |
-| `PRACTICE 1/` | `BankTelemarketing1.py` — logistic regression vs decision tree, ROC/AUC; reads its data from `PRACTICE FINAL/` |
+| `PRACTICE 1/` | `BankTelemarketing1.py` — logistic regression vs decision tree, ROC/AUC; reads from `PRACTICE FINAL/` and deduplicates before splitting |
 | `PRACTICE 2/` | Output PNGs only, no script |
 | `PRACTICE FINAL/` | The two `JCB702_BankTelemarketing*_PRACTICE.csv` datasets — all-numeric, no nulls, balanced 50/50 by row duplication (see landmines) |
 | `Compus/` | `Compus.py` — COMPAS disparate-impact ratio; reads and rewrites its CSVs |
@@ -74,8 +74,9 @@ do not sweep the repo.
    rows are exact duplicates, so 54% of test rows appear verbatim in training. An
    unconstrained model scores ~0.93 AUC by memorising them; deduplicated, the same model
    scores 0.58. Deduplicated the file is 38,769 rows at 11.8% positive — the real campaign
-   base rate. Cap tree depth, or call `drop_duplicates()` before splitting, and never
-   quote an AUC from this file without saying which of the two you did.
+   base rate. `PRACTICE 1/BankTelemarketing1.py` already calls `drop_duplicates()` before
+   splitting; any new script reading this file must do the same, and no AUC from it should
+   be quoted without saying whether it was deduplicated.
 2. **`Hello World/bootcamp1.py` is empty** (0 bytes) and `Hello World/Mouse_Mover` calls
    `main()` at import time with an infinite loop — never import it.
 3. `DATA/Gemini Test 1.py` embeds its dataset as a triple-quoted CSV string. Edit the
