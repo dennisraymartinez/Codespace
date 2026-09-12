@@ -3,12 +3,16 @@
 This script NEVER places, modifies, or cancels an order. It only issues GET
 requests, so it is safe to run as often as you like.
 
-It verifies, in order:
-  1. .env exists and both credentials are present
-  2. the private key decodes to a valid Ed25519 seed
-  3. the credential is enrolled and signing works (account endpoint)
-  4. market data is reachable
-  5. the safety rails in .env are sane
+Local checks run first, so the safety rails are reported even when the
+credentials are missing:
+
+  1. safety rails parse and are internally consistent
+  2. today's usage against the daily caps
+  3. .env exists and both credentials are present
+  4. the private key decodes to a valid Ed25519 seed
+  5. the credential is enrolled and signing works
+  6. market data is reachable for every allow-listed symbol
+  7. holdings are readable
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from robinhood_client import RobinhoodAPIError, RobinhoodCryptoClient
+from safety import Ledger, Rails
 
 ENV_PATH = Path(__file__).with_name(".env")
 
@@ -50,20 +55,82 @@ def section(title: str) -> None:
     print(title)
 
 
+def check_rails() -> Rails | None:
+    """Validate the rails. Local only — no network, no credentials needed."""
+    section("1. Safety rails")
+    try:
+        rails = Rails.from_env()
+    except ValueError as exc:
+        fail(f"could not parse the rails: {exc}", "check .env for typos")
+        return None
+
+    for line in rails.describe():
+        print(f"         {line}")
+    print()
+
+    if rails.trading_enabled:
+        warn("TRADING_ENABLED=true — the bot is cleared to place REAL orders")
+    else:
+        ok("TRADING_ENABLED=false — orders are blocked (kill switch on)")
+
+    if rails.max_order_usd <= 0:
+        fail("MAX_ORDER_USD must be greater than 0", "nothing could ever trade")
+    else:
+        ok(f"per-order cap ${rails.max_order_usd}")
+
+    if not rails.allowed_symbols:
+        fail("ALLOWED_SYMBOLS is empty", "the bot would have nothing to trade")
+    else:
+        ok(f"{len(rails.allowed_symbols)} symbol(s) allow-listed")
+
+    if rails.max_daily_usd < rails.max_order_usd:
+        warn(
+            f"MAX_DAILY_USD ${rails.max_daily_usd} is below MAX_ORDER_USD "
+            f"${rails.max_order_usd} — the per-order cap can never be reached"
+        )
+    if rails.max_orders_per_day <= 0:
+        fail("MAX_ORDERS_PER_DAY must be greater than 0")
+    if rails.slippage_buffer_pct < 0:
+        fail("SLIPPAGE_BUFFER_PCT cannot be negative")
+    if rails.max_limit_deviation_pct <= 0:
+        fail("MAX_LIMIT_DEVIATION_PCT must be greater than 0")
+
+    return rails
+
+
+def check_usage(rails: Rails) -> None:
+    section("2. Today's usage (UTC)")
+    day = Ledger().load()
+    ok(
+        f"{day.order_count} of {rails.max_orders_per_day} orders, "
+        f"${day.notional_usd} of ${rails.max_daily_usd} notional used"
+    )
+    if day.order_count >= rails.max_orders_per_day:
+        warn("daily order count is exhausted — further orders will be refused")
+    if day.notional_usd >= rails.max_daily_usd:
+        warn("daily notional is exhausted — further orders will be refused")
+
+
 def main() -> int:
     print()
     print("=" * 68)
     print("  Robinhood Crypto API — setup check (read-only, places nothing)")
     print("=" * 68)
 
-    # 1. credentials present -------------------------------------------
-    section("1. Credentials")
-
     if not ENV_PATH.exists():
+        section("0. Environment file")
         fail(".env not found", "cp .env.example .env, then fill it in")
         return report()
 
     load_dotenv(ENV_PATH)
+
+    rails = check_rails()
+    if rails is None:
+        return report()
+    check_usage(rails)
+
+    # -- credentials ---------------------------------------------------
+    section("3. Credentials")
     api_key = os.getenv("RH_API_KEY", "").strip()
     private_key = os.getenv("RH_PRIVATE_KEY", "").strip()
 
@@ -77,11 +144,11 @@ def main() -> int:
     else:
         ok("RH_PRIVATE_KEY present (value not shown)")
 
-    if failures:
+    if not api_key or not private_key:
         return report()
 
-    # 2. key is well-formed --------------------------------------------
-    section("2. Key format")
+    # -- key format ----------------------------------------------------
+    section("4. Key format")
     try:
         client = RobinhoodCryptoClient(api_key, private_key)
         ok("private key decodes to a valid Ed25519 seed")
@@ -89,8 +156,8 @@ def main() -> int:
         fail(str(exc), "re-run generate_keys.py and re-copy both values")
         return report()
 
-    # 3. signing + enrollment ------------------------------------------
-    section("3. Authentication (GET accounts)")
+    # -- authentication ------------------------------------------------
+    section("5. Authentication (GET accounts)")
     try:
         account = client.get_account()
         ok(f"authenticated — account {account.get('account_number', '?')}")
@@ -115,26 +182,31 @@ def main() -> int:
         fail(f"could not reach {type(exc).__name__}: {exc}", "check connectivity")
         return report()
 
-    # 4. market data ---------------------------------------------------
-    section("4. Market data")
-    symbols = [
-        s.strip()
-        for s in os.getenv("ALLOWED_SYMBOLS", "BTC-USD").split(",")
-        if s.strip()
-    ]
+    # -- market data ---------------------------------------------------
+    section("6. Market data")
+    symbols = sorted(rails.allowed_symbols)
+    quoted: set[str] = set()
     try:
         quotes = client.get_best_bid_ask(*symbols)
         for quote in quotes.get("results", []):
+            quoted.add(quote.get("symbol", ""))
             ok(
                 f"{quote.get('symbol')}: bid {quote.get('bid_inclusive_of_sell_spread')} "
                 f"/ ask {quote.get('ask_inclusive_of_buy_spread')}"
             )
-        if not quotes.get("results"):
-            warn("market data returned no results for " + ", ".join(symbols))
+        missing = set(symbols) - quoted
+        if missing:
+            # An allow-listed symbol with no quote can never be ordered:
+            # the rails refuse rather than size an order blind.
+            fail(
+                "no quote for " + ", ".join(sorted(missing)),
+                "remove it from ALLOWED_SYMBOLS or fix the spelling",
+            )
     except RobinhoodAPIError as exc:
         fail(f"market data unavailable: {exc}")
 
-    section("5. Holdings")
+    # -- holdings ------------------------------------------------------
+    section("7. Holdings")
     try:
         holdings = client.get_holdings()
         results = holdings.get("results", [])
@@ -145,28 +217,6 @@ def main() -> int:
             ok("no crypto holdings (empty account)")
     except RobinhoodAPIError as exc:
         fail(f"holdings unavailable: {exc}")
-
-    # 6. safety rails --------------------------------------------------
-    section("6. Safety rails")
-    trading_enabled = os.getenv("TRADING_ENABLED", "false").strip().lower()
-    if trading_enabled == "true":
-        warn("TRADING_ENABLED=true — the bot is cleared to place real orders")
-    else:
-        ok("TRADING_ENABLED=false — orders are blocked (kill switch on)")
-
-    try:
-        max_order = float(os.getenv("MAX_ORDER_USD", "0"))
-        if max_order <= 0:
-            fail("MAX_ORDER_USD must be greater than 0")
-        else:
-            ok(f"MAX_ORDER_USD = {max_order:.2f}")
-    except ValueError:
-        fail("MAX_ORDER_USD is not a number")
-
-    if symbols:
-        ok("ALLOWED_SYMBOLS = " + ", ".join(symbols))
-    else:
-        fail("ALLOWED_SYMBOLS is empty", "the bot would have nothing to trade")
 
     return report()
 

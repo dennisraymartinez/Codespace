@@ -22,14 +22,35 @@ BASE_URL = "https://trading.robinhood.com"
 DEFAULT_TIMEOUT = 10
 
 
-class RobinhoodAPIError(RuntimeError):
-    """Raised when the API returns a non-success status."""
+class RobinhoodError(RuntimeError):
+    """Base class for every failure this client raises."""
+
+
+class RobinhoodAPIError(RobinhoodError):
+    """The API answered with a non-success status."""
 
     def __init__(self, status_code: int, body: str, path: str) -> None:
         super().__init__(f"{status_code} on {path}: {body}")
         self.status_code = status_code
         self.body = body
         self.path = path
+
+
+class RobinhoodConnectionError(RobinhoodError):
+    """The request never got an answer — DNS, TLS, proxy, timeout.
+
+    `outcome_known` is False when the request may have reached Robinhood
+    even though we never saw the reply. For a POST that means an order
+    might exist: reconcile with get_orders() before retrying, and retry
+    with the SAME client_order_id so a duplicate cannot fill.
+    """
+
+    def __init__(self, path: str, cause: Exception, outcome_known: bool) -> None:
+        detail = "never sent" if outcome_known else "OUTCOME UNKNOWN"
+        super().__init__(f"could not reach {path} ({detail}): {cause}")
+        self.path = path
+        self.cause = cause
+        self.outcome_known = outcome_known
 
 
 class RobinhoodCryptoClient:
@@ -72,13 +93,21 @@ class RobinhoodCryptoClient:
         self, method: str, path: str, body: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         payload = json.dumps(body) if body is not None else ""
-        response = self._session.request(
-            method.upper(),
-            BASE_URL + path,
-            headers=self._headers(method, path, payload),
-            data=payload if payload else None,
-            timeout=DEFAULT_TIMEOUT,
-        )
+        try:
+            response = self._session.request(
+                method.upper(),
+                BASE_URL + path,
+                headers=self._headers(method, path, payload),
+                data=payload if payload else None,
+                timeout=DEFAULT_TIMEOUT,
+            )
+        except requests.RequestException as exc:
+            # A GET that never landed changed nothing, so the outcome is
+            # known. A write that never answered might still have been
+            # applied — say so rather than guessing.
+            raise RobinhoodConnectionError(
+                path, exc, outcome_known=method.upper() == "GET"
+            ) from exc
         if response.status_code >= 400:
             raise RobinhoodAPIError(response.status_code, response.text[:500], path)
         return response.json() if response.content else {}
@@ -110,3 +139,19 @@ class RobinhoodCryptoClient:
 
     def get_orders(self) -> dict[str, Any]:
         return self.get("/api/v1/crypto/trading/orders/")
+
+    def get_order(self, order_id: str) -> dict[str, Any]:
+        return self.get(f"/api/v1/crypto/trading/orders/{order_id}/")
+
+    # -- write endpoints ---------------------------------------------
+    #
+    # These are raw transport: they apply NO safety rails. Application
+    # code should go through trader.Trader, which is the single choke
+    # point where the rails in safety.py are enforced.
+
+    def place_order(self, body: dict[str, Any]) -> dict[str, Any]:
+        """POST an already-built, already-validated order body."""
+        return self.post("/api/v1/crypto/trading/orders/", body)
+
+    def cancel_order(self, order_id: str) -> dict[str, Any]:
+        return self.post(f"/api/v1/crypto/trading/orders/{order_id}/cancel/", {})
