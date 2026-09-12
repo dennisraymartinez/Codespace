@@ -47,8 +47,8 @@ rounded *down* to the pair's increment — so `--usd 50` produces an order the
 rails estimate at $50.00 or less, never $50.50. It is checked against the
 exchange's own minimum and maximum order size too.
 
-Sizing in dollars is not a way around the rails. `--usd 50` against
-`MAX_ORDER_USD=25` is still refused.
+Sizing in dollars is not a way around the rails. `--usd 100` against
+`MAX_ORDER_USD=60` is still refused.
 
 Exit codes: `0` sent (or dry run completed), `1` refused by the rails,
 `2` Robinhood rejected it, `3` connection failed.
