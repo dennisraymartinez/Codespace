@@ -1,0 +1,17 @@
+# Secrets — never commit
+.env
+*.pem
+*.key
+keys/
+
+# Local virtual environment
+venv/
+.venv/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Local logs / state
+*.log
+state/
