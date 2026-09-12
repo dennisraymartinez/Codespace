@@ -19,7 +19,7 @@ file is a standalone script run directly. Do not invent a package layout, add
 | `Hello World.py` | matplotlib sine/cosine demo with an inline assert |
 | `Hello World/` | `Module_Test.py` (KMeans on synthetic blobs), `Mouse_Mover` (pyautogui jiggler, **no `.py` extension**), `bootcamp1.py` (empty) |
 | `AI Module Final/` | Decision-tree final: script + `decision_tree.png`, `feature_importance.png`, `roc_curve.png` |
-| `PRACTICE 1/` | `BankTelemarketing1.py` — logistic regression vs decision tree, ROC/AUC; reads from `PRACTICE FINAL/` and deduplicates before splitting |
+| `PRACTICE 1/` | `BankTelemarketing1.py` — logistic regression vs decision tree; reads from `PRACTICE FINAL/`, deduplicates before splitting, saves `roc_curve.png` |
 | `PRACTICE 2/` | Output PNGs only, no script |
 | `PRACTICE FINAL/` | The two `JCB702_BankTelemarketing*_PRACTICE.csv` datasets — all-numeric, no nulls, balanced 50/50 by row duplication (see landmines) |
 | `Compus/` | `Compus.py` — COMPAS disparate-impact ratio; reads and rewrites its CSVs |
@@ -82,8 +82,8 @@ do not sweep the repo.
 3. `DATA/Gemini Test 1.py` embeds its dataset as a triple-quoted CSV string. Edit the
    literal, not a file on disk.
 4. `Hello World.py` still saves `complex_plot.jpg` relative to the current working
-   directory rather than to the script. Harmless while it is run from the repo root,
-   where the script also lives.
+   directory rather than to the script — the last remaining cwd-relative output path.
+   Harmless while it is run from the repo root, where the script also lives.
 
 Fixed previously, noted so the history reads clearly: the `D:\Codespace\...` Windows
 paths in `Compus/Compus.py`, `AI Module Final/AI MODULE FINAL.py`, and

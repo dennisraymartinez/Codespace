@@ -58,4 +58,7 @@ plt.xlabel('False Positive Rate')
 plt.ylabel('True Positive Rate')
 plt.title('ROC Curve')
 plt.legend()
+# savefig must precede show(): show() clears the figure on some backends
+plt.savefig(Path(__file__).resolve().parent / 'roc_curve.png')
+print("ROC curve saved as 'roc_curve.png'")
 plt.show()
