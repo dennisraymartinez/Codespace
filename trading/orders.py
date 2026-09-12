@@ -52,7 +52,14 @@ def summarise(order: dict[str, Any]) -> str:
         spent = filled * as_decimal
         # Trim the trailing zeros Robinhood pads prices with, and show a
         # price to the cent — the extra 12 decimal places are noise.
-        shown = plain(as_decimal.quantize(Decimal("0.01")))
+        # NOT plain() for dollar prices: it normalizes, which would turn
+        # 77935.70 into 77935.7. Money keeps both decimal places.
+        # Sub-dollar assets need the opposite treatment — rounding DOGE at
+        # 0.2264 to 0.23 throws away the price.
+        if as_decimal >= 1:
+            shown = str(as_decimal.quantize(Decimal("0.01")))
+        else:
+            shown = plain(as_decimal.quantize(Decimal("0.00000001")))
         line += f" filled {plain(filled)} @ {shown} = ${spent.quantize(Decimal('0.01'))}"
     elif asked > 0:
         line += f" asked {plain(asked)}, filled {plain(filled)}"

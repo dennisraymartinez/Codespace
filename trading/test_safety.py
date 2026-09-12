@@ -897,6 +897,27 @@ def test_padded_price_is_trimmed_for_display():
     assert "0000000000" not in line, line
 
 
+def test_sub_dollar_prices_keep_their_precision():
+    """Rounding DOGE at 0.2264 to two decimals throws the price away."""
+    import orders
+
+    line = orders.summarise(
+        {
+            "id": "abc",
+            "created_at": "2021-11-18T13:56:48",
+            "side": "sell",
+            "symbol": "DOGE-USD",
+            "state": "filled",
+            "filled_asset_quantity": "1790.4",
+            "average_price": "0.226436100000000000",
+            "market_order_config": {"asset_quantity": "1790.4"},
+        }
+    )
+    assert "0.2264361" in line, line
+    assert "@ 0.23 " not in line, line
+    assert "$405.41" in line, line
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0
