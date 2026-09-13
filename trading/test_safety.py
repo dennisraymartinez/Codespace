@@ -1259,6 +1259,36 @@ def test_backing_out_of_the_browser_returns_to_the_picker():
     assert client.placed[0]["symbol"] == "BTC-USD", "should fall back to the list"
 
 
+def test_cancelling_a_filled_order_explains_it_cannot_be_undone():
+    import contextlib, io
+    import orders as orders_mod
+
+    class Filled(FakeClient):
+        def get_order(self, order_id):
+            return {
+                "id": order_id, "created_at": "2026-09-13T10:00:00",
+                "side": "buy", "symbol": "LINK-USD", "state": "filled",
+                "filled_asset_quantity": "3.5", "average_price": "14.20",
+                "market_order_config": {"asset_quantity": "3.5"},
+            }
+
+    client = Filled()
+    original = orders_mod.RobinhoodCryptoClient
+    orders_mod.RobinhoodCryptoClient = lambda *a, **k: client
+    try:
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
+            code = orders_mod.main(["abc-123", "--cancel"])
+        out = buf.getvalue()
+    finally:
+        orders_mod.RobinhoodCryptoClient = original
+
+    assert code == 0
+    assert "already filled" in out
+    assert "cannot be undone" in out
+    assert client.cancelled == [], "must not try to cancel a filled order"
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0

@@ -75,6 +75,11 @@ def main(argv: list[str] | None = None) -> int:
         help="with an order id, poll until it reaches a final state",
     )
     parser.add_argument("--timeout", type=int, default=60, help="seconds to watch")
+    parser.add_argument(
+        "--cancel",
+        action="store_true",
+        help="cancel the given order, if it is still open",
+    )
     args = parser.parse_args(argv)
 
     load_dotenv(ENV_PATH)
@@ -88,6 +93,26 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
+        if args.order_id and args.cancel:
+            # Cancelling is never gated by the rails: stopping an order is
+            # always allowed, kill switch on or off.
+            order = client.get_order(args.order_id)
+            state = order.get("state", "?")
+            if state in FINAL_STATES:
+                print(f"Order is already {state} — nothing to cancel.")
+                print("  " + summarise(order))
+                if state == "filled":
+                    print()
+                    print("A filled order cannot be undone. To reverse the")
+                    print("position you would have to sell it back, which costs")
+                    print("the spread again.")
+                return 0
+            print(f"Cancelling {args.order_id} (currently {state})...")
+            client.cancel_order(args.order_id)
+            time.sleep(2)
+            print("  " + summarise(client.get_order(args.order_id)))
+            return 0
+
         if args.order_id and args.watch:
             deadline = time.time() + args.timeout
             while True:
