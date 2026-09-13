@@ -61,30 +61,92 @@ def spread_pct(bid: Decimal, ask_p: Decimal) -> Decimal:
     return (ask_p - bid) / mid * 100 if mid else Decimal(0)
 
 
-def choose_symbol(symbols: list[str], quotes: dict) -> str:
+def browse_and_add(client: RobinhoodCryptoClient, allowed: list[str]) -> str | None:
+    """Show everything Robinhood trades and add one to the allow-list."""
+    try:
+        results = client.get_trading_pairs().get("results", [])
+    except RobinhoodError as exc:
+        print(f"\n  could not read the list of pairs: {exc}")
+        return None
+
+    tradable = sorted(
+        r["symbol"]
+        for r in results
+        if r.get("symbol")
+        and str(r.get("status", "tradable")).lower() == "tradable"
+    )
+    if not tradable:
+        print("\n  Robinhood returned no tradable pairs")
+        return None
+
     print()
-    print("What do you want to buy?")
+    print(f"  Everything Robinhood trades ({len(tradable)} pairs):")
     print()
-    for i, symbol in enumerate(symbols, 1):
-        line = f"  {i}. {symbol:10}"
-        if symbol in quotes:
-            bid, ask_p = quotes[symbol]
-            line += f" price {plain(ask_p):>14}   round-trip cost {spread_pct(bid, ask_p):.2f}%"
-        else:
-            line += "  (no quote available)"
-        print(line)
+    for row in range(0, len(tradable), 4):
+        print("    " + "".join(s.ljust(16) for s in tradable[row : row + 4]))
     print()
-    print("  'round-trip cost' is what you lose buying then selling straight")
-    print("  back. The price has to move more than that before you profit.")
-    print()
+
     while True:
-        choice = ask(f"Pick 1-{len(symbols)} (or q to quit): ")
-        if choice.lower() in ("q", "quit", ""):
+        typed = ask("  Type a symbol to add (Enter to go back): ").upper().strip()
+        if not typed:
+            return None
+        # "ONDO" and "ondo-usd" both mean ONDO-USD.
+        candidate = typed if "-" in typed else f"{typed}-USD"
+        if candidate in tradable:
+            if candidate not in allowed:
+                set_value(ENV_PATH, "ALLOWED_SYMBOLS",
+                          ",".join(sorted(set(allowed + [candidate]))))
+                print(f"  added {candidate} to your allow-list")
+            return candidate
+        # Match both directions: "SOL" should find SOL-USD, and so should
+        # "SOLANA", whose base is a prefix of what was typed.
+        stem = typed.split("-")[0]
+        near = [
+            s
+            for s in tradable
+            if s.split("-")[0].startswith(stem) or stem.startswith(s.split("-")[0])
+        ]
+        print(f"  Robinhood does not trade {candidate}")
+        if near:
+            print(f"    did you mean: {', '.join(near[:5])}")
+
+
+def choose_symbol(
+    symbols: list[str], quotes: dict, client: RobinhoodCryptoClient
+) -> str:
+    while True:
+        print()
+        print("What do you want to buy?")
+        print()
+        for i, symbol in enumerate(symbols, 1):
+            line = f"  {i}. {symbol:10}"
+            if symbol in quotes:
+                bid, ask_p = quotes[symbol]
+                line += (
+                    f" price {plain(ask_p):>14}   "
+                    f"round-trip cost {spread_pct(bid, ask_p):.2f}%"
+                )
+            else:
+                line += "  (no quote available)"
+            print(line)
+        print()
+        print("  a. Something else — show everything Robinhood trades")
+        print()
+        print("  'round-trip cost' is what you lose buying then selling straight")
+        print("  back. The price has to move more than that before you profit.")
+        print()
+        choice = ask(f"Pick 1-{len(symbols)}, a, or q to quit: ").lower()
+        if choice in ("q", "quit", ""):
             print("cancelled — nothing was bought")
             raise SystemExit(0)
+        if choice == "a":
+            added = browse_and_add(client, symbols)
+            if added:
+                return added
+            continue
         if choice.isdigit() and 1 <= int(choice) <= len(symbols):
             return symbols[int(choice) - 1]
-        print(f"  please type a number from 1 to {len(symbols)}")
+        print(f"  please type a number from 1 to {len(symbols)}, or a, or q")
 
 
 def choose_amount(rails: Rails, spent_today: Decimal) -> Decimal:
@@ -145,7 +207,15 @@ def main() -> int:
     day = preview_trader.ledger.load()
 
     quotes = quotes_for(client, symbols)
-    symbol = choose_symbol(symbols, quotes)
+    symbol = choose_symbol(symbols, quotes, client)
+
+    # The allow-list may have just grown, and the rails were built before
+    # that — without this the order would be refused by ALLOWED_SYMBOLS.
+    if symbol not in rails.allowed_symbols:
+        rails = replace(rails, allowed_symbols=rails.allowed_symbols | {symbol})
+        preview_trader = Trader(client, rails, dry_run=True)
+    if symbol not in quotes:
+        quotes.update(quotes_for(client, [symbol]))
     amount = choose_amount(rails, day.notional_usd)
 
     try:

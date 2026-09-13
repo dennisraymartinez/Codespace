@@ -56,7 +56,9 @@ python buy.py
 
 It lists your allow-listed symbols with live prices and the round-trip
 cost, asks how many dollars, shows exactly what would happen, and places
-the order only after you type `buy`. It arms the kill switch for that one
+the order only after you type `buy`. Picking `a` shows every pair
+Robinhood trades and adds the one you choose to the allow-list, so you are
+never stuck with the symbols already on it. It arms the kill switch for that one
 order and disarms immediately afterwards, so the armed window is as short
 as it can be — and leaves the switch alone if you had already armed it.
 
@@ -119,7 +121,7 @@ sent, so the filled amount is the one that counts.
 | `pairs.py` | Lists tradable crypto pairs; adds or removes allow-list entries. |
 | `envfile.py` | Reads and writes single `.env` values without touching the rest. |
 | `check_setup.py` | Preflight: rails, usage, credentials, signing, market data. Exit 0 = all clear. |
-| `test_safety.py` | 91 tests over the rails and the choke point. Fakes the client, no network. |
+| `test_safety.py` | 96 tests over the rails and the choke point. Fakes the client, no network. |
 
 `robinhood_client.py` can place an order without any rail — it is deliberately
 dumb transport. Application code must go through `Trader`, which is where the

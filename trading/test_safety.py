@@ -1200,6 +1200,65 @@ def test_guided_buy_shows_the_round_trip_cost():
     assert "round-trip cost" in out, out
 
 
+# -- adding a symbol from inside the guided flow ----------------------
+
+
+class BrowsableClient(FakeClient):
+    """A FakeClient that lists more pairs than the allow-list holds."""
+
+    LISTED = ("BTC-USD", "ETH-USD", "ONDO-USD", "SOL-USD", "XRP-USD")
+
+    def get_trading_pairs(self, *symbols):
+        return {
+            "results": [
+                {"symbol": s, "status": "tradable", "min_order_size": "0.000001"}
+                for s in self.LISTED
+            ]
+        }
+
+
+def test_browsing_adds_a_symbol_and_buys_it():
+    """'a', then a symbol not on the allow-list, must reach a real order."""
+    client = BrowsableClient(bid="99", ask="101")
+    code, text, out, _ = _buy(["a", "SOL-USD", "50", "buy"], client=client)
+    assert code == 0, out
+    assert "SOL-USD" in text, "the new symbol should be saved to .env"
+    assert len(client.placed) == 1, out
+    assert client.placed[0]["symbol"] == "SOL-USD"
+
+
+def test_a_newly_added_symbol_is_not_refused_by_the_allow_list():
+    """Regression: rails built before the add would refuse the order."""
+    client = BrowsableClient(bid="99", ask="101")
+    code, text, out, _ = _buy(["a", "SOL-USD", "50", "buy"], client=client)
+    assert "ALLOWED_SYMBOLS" not in out, out
+    assert len(client.placed) == 1
+
+
+def test_a_bare_ticker_is_expanded_to_a_usd_pair():
+    client = BrowsableClient(bid="99", ask="101")
+    code, text, out, _ = _buy(["a", "sol", "50", "buy"], client=client)
+    assert len(client.placed) == 1
+    assert client.placed[0]["symbol"] == "SOL-USD"
+
+
+def test_an_untraded_symbol_is_refused_with_suggestions():
+    client = BrowsableClient(bid="99", ask="101")
+    code, text, out, _ = _buy(
+        ["a", "SOLANA", "SOL-USD", "50", "buy"], client=client
+    )
+    assert "does not trade SOLANA-USD" in out, out
+    assert "did you mean" in out
+    assert len(client.placed) == 1
+
+
+def test_backing_out_of_the_browser_returns_to_the_picker():
+    client = BrowsableClient(bid="99", ask="101")
+    code, text, out, _ = _buy(["a", "", "1", "50", "buy"], client=client)
+    assert len(client.placed) == 1
+    assert client.placed[0]["symbol"] == "BTC-USD", "should fall back to the list"
+
+
 if __name__ == "__main__":
     tests = [(n, f) for n, f in sorted(globals().items()) if n.startswith("test_")]
     failed = 0
