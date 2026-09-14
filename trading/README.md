@@ -105,6 +105,49 @@ acknowledgement, not an execution. Check what actually happened with
 settles. Robinhood may also adjust the quantity slightly from what was
 sent, so the filled amount is the one that counts.
 
+## Seeing what you hold
+
+```powershell
+python positions.py          # holdings, cost basis, P&L
+python positions.py --json   # the same numbers, machine-readable
+```
+
+Read-only — it issues GET requests only and places nothing.
+
+```
+  ASSET          QUANTITY      AVG COST           BID       COST      VALUE        P&L     P&L%
+  ---------------------------------------------------------------------------------------------
+  BTC          0.00002541      77920.77      76579.04      $1.98      $1.95     -$0.03   -1.52%
+  LINK             3.4164         11.61         11.33     $39.66     $38.72     -$0.94   -2.37%
+  ONDO             140.94    0.35125529    0.34758809     $49.51     $48.99     -$0.52   -1.05%
+  ---------------------------------------------------------------------------------------------
+  TOTAL                                                   $91.15     $89.66     -$1.49   -1.63%
+
+  Cost to exit (round-trip spread): BTC 1.89%, LINK 1.90%, ONDO 1.91%
+```
+
+Positions are valued at the **bid** — the side that would actually fill if
+you sold — so VALUE is what you could realise now, not a mid price nobody
+trades at. This is why a position shows red the moment it fills: buying at
+the ask and valuing at the bid is the spread you have already paid, not the
+market moving against you. Compare P&L% against the cost-to-exit line
+before reading a small loss as a bad trade.
+
+Cost basis is **average cost**, rebuilt by walking your filled orders
+oldest-first: a buy adds quantity and cost, a sell removes quantity and the
+same proportion of cost, so selling never moves the average. Selling out
+completely resets it — a later re-entry is priced on its own, not averaged
+against a lot you no longer hold.
+
+The basis is only as good as the history Robinhood returns. When the
+reconstructed quantity disagrees with the holding the exchange reports, or
+a sell reaches further back than the visible orders, the position is
+flagged with a note instead of showing a confident wrong number.
+
+It reads the crypto account only. Stocks, ETFs and options are not visible
+to this API at all, so anything you hold in equities — bought in the app or
+anywhere else — will never appear here. Check those in the Robinhood app.
+
 ## Files
 
 | File | Purpose |
@@ -118,10 +161,12 @@ sent, so the filled amount is the one that counts.
 | `set_api_key.py` | Writes `RH_API_KEY` into `.env` safely. Refuses a private key. |
 | `arm.py` | Turns the kill switch on (asks first) or off (immediately). |
 | `orders.py` | Shows recent orders and how they filled. Read-only. |
+| `positions.py` | What you hold, what it cost, and what it is worth now. Read-only. |
 | `pairs.py` | Lists tradable crypto pairs; adds or removes allow-list entries. |
 | `envfile.py` | Reads and writes single `.env` values without touching the rest. |
 | `check_setup.py` | Preflight: rails, usage, credentials, signing, market data. Exit 0 = all clear. |
-| `test_safety.py` | 96 tests over the rails and the choke point. Fakes the client, no network. |
+| `test_safety.py` | Tests over the rails and the choke point. Fakes the client, no network. |
+| `test_positions.py` | Tests over the cost-basis reconstruction. Fakes the client, no network. |
 
 `robinhood_client.py` can place an order without any rail — it is deliberately
 dumb transport. Application code must go through `Trader`, which is where the
