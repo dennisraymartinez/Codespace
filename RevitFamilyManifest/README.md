@@ -14,7 +14,8 @@ results are handed to the sheet.
 
 | | |
 |---|---|
-| `Scan-RevitFamilies.ps1` | Runs on the workstation. Walks the drive, writes a CSV. |
+| `Run Family Scan.cmd` | Double-click this. Runs the scan with your paths baked in. |
+| `Scan-RevitFamilies.ps1` | The scanner itself. Keep it beside the .cmd. |
 | `LocalManifest.gs` | Runs in the sheet. Adds the button, imports the results. |
 
 The first four CSV columns (`Root`, `Name`, `Extension`, `Path`) match the
@@ -38,13 +39,29 @@ function onOpen() {
 
 Reload the spreadsheet. **Revit Tools › Local C: Drive Manifest** appears.
 
-**2. Workstation side.** Put `Scan-RevitFamilies.ps1` somewhere convenient.
-Nothing to install — Windows PowerShell 5.1 ships with Windows and is enough.
-If the script is blocked on first run:
+**2. Workstation side.** Put `Run Family Scan.cmd` and `Scan-RevitFamilies.ps1`
+in the same folder, anywhere convenient. Nothing to install — Windows
+PowerShell 5.1 ships with Windows and is enough.
 
-```powershell
-Unblock-File .\Scan-RevitFamilies.ps1
+Then double-click **`Run Family Scan.cmd`**. It sets the execution policy for
+its own run and clears the blocked-file mark itself, so there is no PowerShell
+to type and nothing to remember between scans.
+
+To point it somewhere else, right-click the .cmd and choose Edit. Only the
+lines at the top, under the comment banner, are meant to be changed:
+
+```bat
+set "LIB1=D:\Dropbox\.0REVIT FAMILIES\Manufacturers"
+set "LIB2=D:\Dropbox\.0REVIT FAMILIES\DOWNLOAD"
+set "OUTDIR=%USERPROFILE%\Desktop"
 ```
+
+Scanning the two libraries as separate roots is deliberate: the `Root` column
+then reads `Manufacturers` or `DOWNLOAD`, so the download dump can be filtered
+out of any search with one click.
+
+The sections below are the manual route, for a one-off scan with different
+switches.
 
 ## Getting results into the sheet
 
