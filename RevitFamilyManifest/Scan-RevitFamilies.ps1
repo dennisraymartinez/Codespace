@@ -246,6 +246,38 @@ function Get-FamilyFiles {
 # Run
 # --------------------------------------------------------------------------
 $started = Get-Date
+
+if (-not $OutFile) {
+    if (-not $OutDir) { $OutDir = [Environment]::GetFolderPath('Desktop') }
+    $stamp   = $started.ToString('yyyyMMdd_HHmmss')
+    $OutFile = Join-Path $OutDir "RFA_Manifest_$stamp.csv"
+}
+
+$outParent = Split-Path -Parent $OutFile
+if ($outParent -and -not (Test-Path -LiteralPath $outParent)) {
+    New-Item -ItemType Directory -Path $outParent -Force | Out-Null
+}
+
+# Writing to one fixed filename means a re-run can collide with the copy still
+# open in Excel. Catch that now, not after a ten-minute walk.
+if (Test-Path -LiteralPath $OutFile) {
+    try {
+        $probe = [System.IO.File]::Open($OutFile, [System.IO.FileMode]::Open,
+                                                  [System.IO.FileAccess]::Write,
+                                                  [System.IO.FileShare]::None)
+        $probe.Dispose()
+    } catch {
+        Write-Host ""
+        Write-Host "  Cannot write to:" -ForegroundColor Red
+        Write-Host "    $OutFile"
+        Write-Host ""
+        Write-Host "  That file is open in another program - almost always Excel." -ForegroundColor Yellow
+        Write-Host "  Close it and run the scan again."
+        Write-Host ""
+        exit 1
+    }
+}
+
 Write-Host ""
 Write-Host "Revit family manifest - local scan" -ForegroundColor Cyan
 Write-Host ("Started {0}" -f $started.ToString('ddd MMM dd yyyy HH:mm:ss'))
@@ -326,18 +358,19 @@ if ($ReadVersion) {
 # --------------------------------------------------------------------------
 # Write CSV
 # --------------------------------------------------------------------------
-if (-not $OutFile) {
-    if (-not $OutDir) { $OutDir = [Environment]::GetFolderPath('Desktop') }
-    if (-not (Test-Path -LiteralPath $OutDir)) {
-        New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
-    }
-    $stamp   = $started.ToString('yyyyMMdd_HHmmss')
-    $OutFile = Join-Path $OutDir "RFA_Manifest_$stamp.csv"
+try {
+    $sorted | Select-Object Root, Name, Extension, Path, Folder, SizeKB, Modified, RevitRelease,
+                            TypeCatalog, CatalogTypes, Copies |
+        Export-Csv -LiteralPath $OutFile -NoTypeInformation -Encoding UTF8
+} catch {
+    Write-Host ""
+    Write-Host "  Could not write the CSV:" -ForegroundColor Red
+    Write-Host "    $OutFile"
+    Write-Host ("  {0}" -f $_.Exception.Message) -ForegroundColor Yellow
+    Write-Host "  If it is open in Excel, close it and run again."
+    Write-Host ""
+    exit 1
 }
-
-$sorted | Select-Object Root, Name, Extension, Path, Folder, SizeKB, Modified, RevitRelease,
-                        TypeCatalog, CatalogTypes, Copies |
-    Export-Csv -LiteralPath $OutFile -NoTypeInformation -Encoding UTF8
 
 Write-Host ""
 Write-Host "CSV written: $OutFile" -ForegroundColor Green

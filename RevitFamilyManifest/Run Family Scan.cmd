@@ -16,12 +16,17 @@ set "LIB2=D:\Dropbox\.0REVIT FAMILIES\DOWNLOAD"
 
 
 REM --- Where the CSV lands. ---------------------------------------------
-set "OUTDIR=%USERPROFILE%\Desktop"
+REM  One file, overwritten every scan, so these never pile up on the Desktop.
+set "OUTFILE=%USERPROFILE%\Desktop\RFA_Manifest.csv"
 
 REM  Prefer it to go straight to Google Drive so the sheet can import it?
 REM  Delete the REM from the next line and fix the drive letter, then put a
 REM  REM in front of the line above.
-REM set "OUTDIR=G:\My Drive\RevitManifest"
+REM set "OUTFILE=G:\My Drive\RevitManifest\RFA_Manifest.csv"
+
+REM  Want a dated copy kept from every scan instead of one overwritten file?
+REM  Comment out the OUTFILE line above and uncomment this one:
+REM set "OUTDIR=%USERPROFILE%\Desktop"
 
 
 REM --- Revit release detection. -----------------------------------------
@@ -66,13 +71,14 @@ if not exist "%LIB1%" (
 set "ROOTS='%LIB1%'"
 if defined LIB2 if exist "%LIB2%" set "ROOTS='%LIB1%','%LIB2%'"
 
-if not exist "%OUTDIR%" mkdir "%OUTDIR%" 2>nul
+set "DEST=-OutFile '%OUTFILE%'"
+if not defined OUTFILE set "DEST=-OutDir '%OUTDIR%'"
 
 echo.
 echo   Scanning your Revit family library...
 echo.
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& { Unblock-File -LiteralPath '%PS1%' -ErrorAction SilentlyContinue; & '%PS1%' -Roots %ROOTS% -OutDir '%OUTDIR%' %READVERSION% }"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "& { Unblock-File -LiteralPath '%PS1%' -ErrorAction SilentlyContinue; & '%PS1%' -Roots %ROOTS% %DEST% %READVERSION% }"
 
 if errorlevel 1 (
   echo.

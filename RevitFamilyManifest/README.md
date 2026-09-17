@@ -53,8 +53,18 @@ lines at the top, under the comment banner, are meant to be changed:
 ```bat
 set "LIB1=D:\Dropbox\.0REVIT FAMILIES\Manufacturers"
 set "LIB2=D:\Dropbox\.0REVIT FAMILIES\DOWNLOAD"
-set "OUTDIR=%USERPROFILE%\Desktop"
+set "OUTFILE=%USERPROFILE%\Desktop\RFA_Manifest.csv"
 ```
+
+`OUTFILE` is one file, overwritten every scan, so manifests do not pile up. If
+you would rather keep a dated copy of each run, comment that line out and
+uncomment the `OUTDIR` line below it — output then goes to
+`RFA_Manifest_<timestamp>.csv` instead.
+
+Because there is now one fixed filename, a re-run can collide with the copy
+still open in Excel. The scanner checks for that before it starts walking and
+tells you to close the file, rather than scanning for minutes and then failing
+at the last step.
 
 Scanning the two libraries as separate roots is deliberate: the `Root` column
 then reads `Manufacturers` or `DOWNLOAD`, so the download dump can be filtered
@@ -162,7 +172,8 @@ copy per family.
 | `-IncludeBackups` | Include Revit's incremental family backups (`Hood.0001.rfa`). Off by default. |
 | `-IncludeTemplates` | Include `.rft` family templates. |
 | `-ExcludeDir` | Extra path fragments to prune, e.g. `-ExcludeDir '\archive\','\_superseded\'` |
-| `-OutDir` / `-OutFile` | Where the CSV goes. Defaults to the Desktop. |
+| `-OutFile` | Exact CSV path, overwritten each run. What the .cmd uses. |
+| `-OutDir` | Folder for timestamped `RFA_Manifest_<stamp>.csv` files instead. Defaults to the Desktop. |
 
 Pruned by default: `Windows`, `Program Files`, recycle bins, temp and package
 folders, `ProgramData\Autodesk`, and Revit's `CollaborationCache` — the local
