@@ -118,6 +118,8 @@ shaded red.
 | Size KB | |
 | Modified | Last write time |
 | Revit Release | Release the family was saved in — only with `-ReadVersion` |
+| Type Catalog | `Present`, `MISSING`, or blank — see below |
+| Catalog Types | How many types the catalog defines |
 | Copies | How many times this file name appears in the scan |
 
 `Revit Release` is read out of the family's `BasicFileInfo` stream without
@@ -125,6 +127,25 @@ opening Revit. It is the column worth having: it tells you which families will
 force an upgrade prompt before you load them, and which half of the library is
 still back on an old release. Blank means the stream could not be read — some
 very old or third-party-generated families do not carry it.
+
+`Type Catalog` is the one that catches silent breakage. A type catalog is a
+`.txt` sitting beside the family with the same base name, listing the model
+range. If it goes missing, the family still loads — with only its default
+type, and no error explaining why. Families get separated from their catalogs
+constantly when content is downloaded, re-extracted, or copied between folders.
+
+The filesystem cannot tell you a family *expects* a catalog, since catalogs are
+optional. So the column reports what it can actually know:
+
+| Value | Meaning |
+|---|---|
+| `Present` | A matching `.txt` is there. `Catalog Types` counts the types in it. |
+| `MISSING` | No `.txt`, and the family name ends in the catalog suffix — so it was meant to have one. |
+| blank | No `.txt` and no suffix. Almost certainly a single-type family, nothing wrong. |
+
+`MISSING` depends on your naming convention. It defaults to `_cat`; change it
+with `-CatalogSuffix`, or pass `-CatalogSuffix ''` to only ever report
+`Present`.
 
 `Copies` is the other one. The current Drive manifest already shows the same
 family at several paths; on a local scan that number is usually worse, and it

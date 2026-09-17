@@ -18,7 +18,8 @@
 
 var LOCAL_SHEET_NAME = 'LOCAL C DRIVE';
 var LOCAL_HEADERS = ['Root', 'Name', 'Extension', 'Path', 'Folder',
-                     'Size KB', 'Modified', 'Revit Release', 'Copies'];
+                     'Size KB', 'Modified', 'Revit Release',
+                     'Type Catalog', 'Catalog Types', 'Copies'];
 var DEFAULT_DRIVE_FOLDER = 'RevitManifest';
 var CSV_NAME_PATTERN = /^RFA_Manifest.*\.csv$/i;
 
@@ -338,14 +339,25 @@ function finishFormatting_(sheet) {
       sheet.getRange(2, 1, last - 1, LOCAL_HEADERS.length).createFilter();
     }
 
-    // Flag every family whose name appears more than once in the scan.
-    var copies = sheet.getRange(3, LOCAL_HEADERS.indexOf('Copies') + 1, last - 2, 1);
-    var rule = SpreadsheetApp.newConditionalFormatRule()
-                 .whenNumberGreaterThan(1)
-                 .setBackground('#fce8e6')
-                 .setRanges([copies])
-                 .build();
-    sheet.setConditionalFormatRules([rule]);
+    var rules = [];
+
+    // Families whose name appears at more than one path.
+    rules.push(SpreadsheetApp.newConditionalFormatRule()
+      .whenNumberGreaterThan(1)
+      .setBackground('#fce8e6')
+      .setRanges([sheet.getRange(3, LOCAL_HEADERS.indexOf('Copies') + 1, last - 2, 1)])
+      .build());
+
+    // Type catalog families that lost their .txt -- these load with only their
+    // default type and give no error saying so.
+    rules.push(SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo('MISSING')
+      .setBackground('#fad2cf')
+      .setBold(true)
+      .setRanges([sheet.getRange(3, LOCAL_HEADERS.indexOf('Type Catalog') + 1, last - 2, 1)])
+      .build());
+
+    sheet.setConditionalFormatRules(rules);
   }
   sheet.autoResizeColumns(1, 3);
 }

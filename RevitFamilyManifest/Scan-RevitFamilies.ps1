@@ -57,6 +57,7 @@ param(
     [switch]$IncludeBackups,
     [switch]$IncludeAutodeskLibraries,
     [switch]$ReadVersion,
+    [string]$CatalogSuffix = '_cat',
     [int]$MaxReadMB = 8,
     [string]$WebAppUrl,
     [string]$Token,
@@ -137,6 +138,46 @@ function Get-RevitRelease {
 }
 
 # --------------------------------------------------------------------------
+# Type catalogs.
+#
+# A type catalog is a .txt sitting beside the family with the same base name;
+# without it the family loads with only its default type and says nothing about
+# why. The filesystem cannot tell us a family *expects* one -- catalogs are
+# optional -- so a missing .txt is only reported as a problem when the family
+# name follows the library's catalog convention (-CatalogSuffix, default _cat).
+# --------------------------------------------------------------------------
+function Get-TypeCatalog {
+    param([string]$RfaPath)
+
+    $dir  = [System.IO.Path]::GetDirectoryName($RfaPath)
+    $base = [System.IO.Path]::GetFileNameWithoutExtension($RfaPath)
+    $txt  = [System.IO.Path]::Combine($dir, $base + '.txt')
+
+    if ([System.IO.File]::Exists($txt)) {
+        $types = ''
+        try {
+            $reader = [System.IO.File]::OpenText($txt)
+            try {
+                $n = 0
+                $first = $true
+                while ($null -ne ($line = $reader.ReadLine())) {
+                    if ($first) { $first = $false; continue }   # parameter header row
+                    if (-not [string]::IsNullOrWhiteSpace($line)) { $n++ }
+                }
+                $types = $n
+            } finally { $reader.Dispose() }
+        } catch { }
+        return [pscustomobject]@{ Status = 'Present'; Types = $types }
+    }
+
+    if ($CatalogSuffix -and $base.EndsWith($CatalogSuffix, [StringComparison]::OrdinalIgnoreCase)) {
+        return [pscustomobject]@{ Status = 'MISSING'; Types = '' }
+    }
+
+    return [pscustomobject]@{ Status = ''; Types = '' }
+}
+
+# --------------------------------------------------------------------------
 # Stack-based walk. Get-ChildItem -Recurse cannot prune and cannot survive
 # the access-denied wall on a full C:\ sweep; this can do both.
 # --------------------------------------------------------------------------
@@ -175,6 +216,8 @@ function Get-FamilyFiles {
                 try   { $info = New-Object System.IO.FileInfo $file }
                 catch { continue }
 
+                $catalog = Get-TypeCatalog -RfaPath $info.FullName
+
                 $found.Add([pscustomobject]@{
                     Root          = $RootLabel
                     Name          = $info.Name
@@ -184,6 +227,8 @@ function Get-FamilyFiles {
                     SizeKB        = [math]::Round($info.Length / 1KB, 1)
                     Modified      = $info.LastWriteTime.ToString('yyyy-MM-dd HH:mm')
                     RevitRelease  = ''
+                    TypeCatalog   = $catalog.Status
+                    CatalogTypes  = $catalog.Types
                     Copies        = 1
                 })
             }
@@ -262,6 +307,13 @@ Write-Host ("Total families: {0}   Duplicated names: {1}   Elapsed: {2:mm\:ss}" 
             (@($byName.GetEnumerator() | Where-Object { $_.Value -gt 1 }).Count),
             $elapsed) -ForegroundColor Green
 
+$missingCat = @($sorted | Where-Object { $_.TypeCatalog -eq 'MISSING' })
+if ($missingCat.Count -gt 0) {
+    Write-Host ""
+    Write-Host ("Type catalogs missing: {0}" -f $missingCat.Count) -ForegroundColor Yellow
+    Write-Host "  These load with only their default type. Filter TypeCatalog = MISSING."
+}
+
 if ($ReadVersion) {
     Write-Host ""
     Write-Host "By Revit release:"
@@ -283,7 +335,8 @@ if (-not $OutFile) {
     $OutFile = Join-Path $OutDir "RFA_Manifest_$stamp.csv"
 }
 
-$sorted | Select-Object Root, Name, Extension, Path, Folder, SizeKB, Modified, RevitRelease, Copies |
+$sorted | Select-Object Root, Name, Extension, Path, Folder, SizeKB, Modified, RevitRelease,
+                        TypeCatalog, CatalogTypes, Copies |
     Export-Csv -LiteralPath $OutFile -NoTypeInformation -Encoding UTF8
 
 Write-Host ""
@@ -329,7 +382,8 @@ if ($WebAppUrl) {
     for ($i = 0; $i -lt $total; $i += $BatchSize) {
         $slice = $sorted[$i..([math]::Min($i + $BatchSize - 1, $total - 1))]
         $rows  = $slice | ForEach-Object {
-            ,@($_.Root, $_.Name, $_.Extension, $_.Path, $_.Folder, $_.SizeKB, $_.Modified, $_.RevitRelease, $_.Copies)
+            ,@($_.Root, $_.Name, $_.Extension, $_.Path, $_.Folder, $_.SizeKB, $_.Modified, $_.RevitRelease,
+              $_.TypeCatalog, $_.CatalogTypes, $_.Copies)
         }
         Send-Batch -Mode 'append' -Rows $rows
         Write-Host ("  sent {0} of {1}" -f [math]::Min($i + $BatchSize, $total), $total)
