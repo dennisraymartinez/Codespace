@@ -1,0 +1,138 @@
+===============================================================
+  REVIT FAMILY MANIFEST  -  HOW TO USE
+===============================================================
+
+WHAT THIS DOES
+--------------
+Scans your Revit family library on the D: drive and writes a
+list of every .rfa file it finds - where it lives, how big it
+is, whether it has a type catalog, and whether copies of it
+exist elsewhere.
+
+Google Sheets cannot read your hard drive. That is why this
+runs here on the PC instead. It produces a file; the sheet
+reads the file.
+
+
+---------------------------------------------------------------
+TO RUN A SCAN
+---------------------------------------------------------------
+
+  Double-click:  Run Family Scan.cmd
+
+That is it. A black window opens and shows progress. When it
+finishes it tells you where it saved the file, then waits for
+you to press a key.
+
+Result:  RFA_Manifest.csv  on your Desktop
+
+The same file is overwritten every time, so they never pile up.
+
+
+---------------------------------------------------------------
+TO GET IT INTO THE GOOGLE SHEET
+---------------------------------------------------------------
+
+  1. Open the "Revit Family Manifest" Google Sheet
+  2. Click the RFA_Manifest tab at the bottom  (IMPORTANT)
+  3. File > Import > Upload
+  4. Pick RFA_Manifest.csv from your Desktop
+  5. Import location:  REPLACE CURRENT SHEET
+  6. Import data
+
+Step 2 and step 5 matter. If you pick "Insert new sheet"
+instead, you get a second copy of the tab and the Search tab
+counts everything twice.
+
+Once imported, the Search tab picks it up automatically.
+
+
+---------------------------------------------------------------
+HOW OFTEN
+---------------------------------------------------------------
+
+The library is an archive and barely changes. Every few months
+is fine, or right after you have downloaded a batch of new
+families.
+
+
+---------------------------------------------------------------
+WHAT THE COLUMNS MEAN
+---------------------------------------------------------------
+
+Root ............ Which library it came from (Manufacturers or
+                  DOWNLOAD)
+Name ............ The family file name
+Extension ....... rfa
+Path ............ Full location on disk
+Folder .......... The folder it sits in
+SizeKB .......... File size
+Modified ........ When it was last saved
+RevitRelease .... Which Revit version it was saved in.
+                  Blank unless version reading is turned on -
+                  see NOTES below.
+
+TypeCatalog ..... THE IMPORTANT ONE.
+                  A type catalog is a .txt file that sits next
+                  to a family and holds all its sizes/models.
+
+                  Present = the .txt is there. Good.
+                  MISSING = the .txt is gone. The family will
+                            still load, but you only get ONE
+                            default type instead of the full
+                            model range - and Revit does not
+                            warn you. These need fixing.
+                  (blank) = normal single-type family. Fine.
+
+CatalogTypes .... How many models the catalog contains.
+Copies .......... How many times this family name shows up
+                  anywhere in the scan. Anything above 1 means
+                  duplicates.
+
+
+---------------------------------------------------------------
+IF SOMETHING GOES WRONG
+---------------------------------------------------------------
+
+"Cannot write to ... open in another program"
+    RFA_Manifest.csv is open in Excel. Close it, run again.
+
+"Library folder not found"
+    The library moved. Right-click Run Family Scan.cmd,
+    choose Edit (or Show more options > Edit), and fix the
+    LIB1 / LIB2 lines near the top. Save, run again.
+
+"Could not find Scan-RevitFamilies.ps1"
+    The two files got separated. They must stay in the same
+    folder as each other.
+
+Window flashes and disappears
+    Should not happen - it waits for a keypress. If it does,
+    right-click the .cmd and Edit to check nothing got
+    mangled.
+
+
+---------------------------------------------------------------
+NOTES
+---------------------------------------------------------------
+
+DO NOT separate the two files in this folder. Run Family
+Scan.cmd needs Scan-RevitFamilies.ps1 sitting right next to
+it. Move them together or not at all.
+
+RFA_Manifest.csv is disposable. Every scan replaces it. Do not
+edit it and expect changes to stick - do your markup in Google
+Sheets instead.
+
+REVIT VERSION DETECTION is turned off on purpose. Turning it
+on makes the scan read inside every family, which forces
+Dropbox to download every file that is currently online-only.
+If the library folder is set to "Available offline," you can
+turn it on: right-click Run Family Scan.cmd, Edit, and follow
+the comments above the READVERSION line.
+
+TO CHANGE WHERE IT SCANS or where the CSV lands, right-click
+Run Family Scan.cmd and choose Edit. Only the lines at the top
+under the comment banner are meant to be changed.
+
+===============================================================
